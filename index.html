@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tilgjengelighet – Geonorge kartvisning</title>
+  <meta name="description" content="Interaktivt kart som viser tilgjengelighetsdata fra Geonorge for universell utforming i Norge." />
+  <link rel="stylesheet" href="style.css" />
+  <!-- OpenLayers CSS loaded from main.js via import -->
+</head>
+<body>
+
+  <!-- Skip link: WCAG 2.4.1 – Bypass Blocks -->
+  <a class="skip-link" href="#map">Hopp til kartet</a>
+  <a class="skip-link" href="#layer-panel">Hopp til lagvalg</a>
+
+  <header class="app-header" role="banner">
+    <div class="header-inner">
+      <div class="logo-lockup">
+        <svg class="logo-icon" aria-hidden="true" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="18" cy="18" r="17" stroke="currentColor" stroke-width="2"/>
+          <path d="M18 8 C12 8 8 13 8 18 C8 24 13 28 18 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M18 8 C24 8 28 13 28 18 C28 24 23 28 18 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M8 18 H28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="18" cy="18" r="3" fill="currentColor"/>
+          <path d="M18 8 V28" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 3"/>
+        </svg>
+        <div>
+          <span class="logo-title">Tilgjengelighet</span>
+          <span class="logo-sub">Geonorge kartvisning</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="https://www.geonorge.no/" target="_blank" rel="noopener noreferrer" class="btn-ghost">
+          Geonorge <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-layout" role="main">
+
+    <!-- Sidebar: Layer Panel -->
+    <aside class="sidebar" id="layer-panel" aria-label="Kartlag og innstillinger">
+
+      <div class="sidebar-section">
+        <h2 class="sidebar-heading">Kartlag</h2>
+        <p class="sidebar-desc" id="layer-hint">
+          Velg hvilke lag du vil vise på kartet. Hvert lag viser ulike aspekter av tilgjengelighet.
+        </p>
+
+        <!-- Loading state -->
+        <div id="layer-loading" class="loading-state" aria-live="polite" aria-label="Laster kartlag...">
+          <div class="spinner" aria-hidden="true"></div>
+          <span>Laster kartlag…</span>
+        </div>
+
+        <!-- Layer tree rendered by JS -->
+        <div id="layer-tree" role="tree" aria-labelledby="layer-hint" hidden></div>
+      </div>
+
+      <div class="sidebar-section sidebar-section--info">
+        <h2 class="sidebar-heading">Stedsinfo</h2>
+        <!-- ARIA Live Region: WCAG 1.3.1 / 4.1.3 – Status Messages -->
+        <div
+          id="feature-info"
+          class="feature-info-panel"
+          role="region"
+          aria-live="polite"
+          aria-atomic="true"
+          aria-label="Informasjon om valgt punkt"
+        >
+          <p class="feature-info-placeholder">
+            Klikk på kartet eller naviger med tastaturet og trykk Enter for å hente informasjon om et punkt.
+          </p>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h2 class="sidebar-heading">Bakgrunnskart</h2>
+        <fieldset class="basemap-fieldset">
+          <legend class="sr-only">Velg bakgrunnskart</legend>
+          <label class="radio-label">
+            <input type="radio" name="basemap" value="osm" checked />
+            OpenStreetMap
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="basemap" value="topo" />
+            Topografisk (Kartverket)
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="basemap" value="none" />
+            Ingen bakgrunn
+          </label>
+        </fieldset>
+      </div>
+
+      <div class="sidebar-section sidebar-section--controls">
+        <h2 class="sidebar-heading">Kartkontroller</h2>
+        <div class="map-controls-list" role="group" aria-label="Kartkontroller">
+          <button class="btn-control" id="btn-zoom-in" aria-label="Zoom inn">
+            <span aria-hidden="true">+</span>
+          </button>
+          <button class="btn-control" id="btn-zoom-out" aria-label="Zoom ut">
+            <span aria-hidden="true">−</span>
+          </button>
+          <button class="btn-control" id="btn-reset-view" aria-label="Tilbakestill kartvisning til Norge">
+            <span aria-hidden="true">⌂</span>
+          </button>
+        </div>
+        <p class="hint-text">
+          Tastatur: <kbd>Tab</kbd> for å fokusere kartet, piltaster for å panorere, <kbd>+</kbd>/<kbd>−</kbd> for zoom, <kbd>Enter</kbd> for stedsinfo.
+        </p>
+      </div>
+
+      <footer class="sidebar-footer">
+        <p>Data: <a href="https://www.geonorge.no/" target="_blank" rel="noopener">Kartverket / Geonorge</a></p>
+        <p>© Statens kartverk</p>
+      </footer>
+    </aside>
+
+    <!-- Map container -->
+    <div class="map-wrapper">
+      <!-- Status bar above map -->
+      <div class="map-statusbar" role="status" aria-live="polite" aria-atomic="true" id="map-status">
+        Klar. Zoom: <span id="status-zoom">5</span> &nbsp;|&nbsp; Aktive lag: <span id="status-layers">0</span>
+      </div>
+
+      <div
+        id="map"
+        class="map-container"
+        tabindex="0"
+        role="application"
+        aria-label="Interaktivt kart over tilgjengelighetsdata i Norge. Bruk piltaster for å panorere og +/- for zoom."
+      ></div>
+
+      <!-- Mobile toggle -->
+      <button class="btn-mobile-sidebar" id="btn-mobile-sidebar" aria-expanded="false" aria-controls="layer-panel">
+        <span aria-hidden="true">☰</span> Lag &amp; info
+      </button>
+    </div>
+
+  </main>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
