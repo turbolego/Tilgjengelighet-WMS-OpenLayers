@@ -47,7 +47,7 @@ body {
   background: var(--ink);
   color: var(--paper);
   height: 100dvh;
-  overflow: hidden;
+  overflow: auto; /* mobile-first */
   display: flex;
   flex-direction: column;
 }
@@ -143,54 +143,122 @@ body {
   box-shadow: var(--focus-ring);
 }
 
-/* ── App Layout ──────────────────────────────────────────── */
+/* ── App Layout (Mobile First) ──────────────────────────── */
+
 .app-layout {
   display: flex;
-  flex: 1;
-  overflow: hidden;
+  flex-direction: column;
+  height: 100%;
 }
 
-/* ── Sidebar ─────────────────────────────────────────────── */
+/* ── Sidebar (Mobile: overlay) ──────────────────────────── */
+
 .sidebar {
-  width: var(--sidebar-w);
-  flex-shrink: 0;
+  position: fixed;
+  top: var(--header-h);
+  left: 0;
+  bottom: 0;
+  width: min(90vw, var(--sidebar-w));
   background: var(--ink-mid);
-  border-right: 1px solid var(--steel);
+  border-right: 1px solid var(--amber);
+  z-index: 200;
+
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+
   overflow-y: auto;
-  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  scrollbar-width: thin;
-  scrollbar-color: var(--steel) transparent;
 }
 
-.sidebar::-webkit-scrollbar { width: 6px; }
-.sidebar::-webkit-scrollbar-track { background: transparent; }
-.sidebar::-webkit-scrollbar-thumb { background: var(--steel); border-radius: 3px; }
-
-.sidebar-section {
-  padding: 1.25rem;
-  border-bottom: 1px solid rgba(58,80,104,0.5);
+.sidebar.mobile-open {
+  transform: translateX(0);
 }
 
-.sidebar-section--info { flex: 1; }
+/* ── Map Wrapper (Mobile default) ───────────────────────── */
 
-.sidebar-heading {
-  font-size: 0.65rem;
-  font-family: var(--font-mono);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--amber);
-  margin-bottom: 0.75rem;
+.map-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--header-h));
 }
 
-.sidebar-desc {
+.map-container {
+  flex: 1;
+}
+
+/* ── Mobile Toggle Button ───────────────────────────────── */
+
+.btn-mobile-sidebar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  margin-left: 0.5rem; /* spacing from Geonorge button */
+
+  background: var(--amber);
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.4rem 0.75rem;
+
   font-size: 0.8rem;
-  color: var(--mist);
-  line-height: 1.5;
-  margin-bottom: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  transition: all var(--trans);
+}
+
+.btn-mobile-sidebar:hover {
+  background: rgba(232,160,32,0.1);
+  color: var(--white);
+  border-color: var(--amber);
+}
+
+.btn-mobile-sidebar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Desktop Enhancement ───────────────────────────────── */
+
+@media (min-width: 768px) {
+
+  body {
+    overflow: hidden;
+  }
+
+  .app-layout {
+    flex-direction: row;
+  }
+
+  .sidebar {
+    position: relative;
+    transform: none;
+    width: var(--sidebar-w);
+    border-right: 1px solid var(--steel);
+  }
+
+  .map-wrapper {
+    height: auto;
+  }
+
+  .btn-mobile-sidebar {
+    display: none;
+  }
+}
+
+/* ── Fix body scrolling behavior ───────────────────────── */
+
+body {
+  overflow: auto; /* mobile-first */
+}
+
+@media (min-width: 768px) {
+  body {
+    overflow: hidden;
+  }
 }
 
 /* ── Loading state ───────────────────────────────────────── */
@@ -485,8 +553,6 @@ kbd {
 
 .map-container {
   flex: 1;
-  background: var(--ink);
-  outline: none;
 }
 
 /* Custom focus ring when map receives keyboard focus */
@@ -515,25 +581,46 @@ kbd {
 
 /* ── Mobile sidebar toggle ───────────────────────────────── */
 .btn-mobile-sidebar {
-  display: none;
-  position: absolute;
-  bottom: 1rem;
-  right: 1rem;
-  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  margin-left: 0.5rem; /* spacing from Geonorge button */
+
   background: var(--amber);
   color: var(--ink);
-  border: none;
-  border-radius: 2rem;
-  padding: 0.6rem 1.2rem;
-  font-family: var(--font-body);
-  font-size: 0.85rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.4rem 0.75rem;
+
+  font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+
+  transition: all var(--trans);
 }
+
+.btn-mobile-sidebar:hover {
+  background: rgba(232,160,32,0.1);
+  color: var(--white);
+  border-color: var(--amber);
+}
+
 .btn-mobile-sidebar:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring), 0 4px 16px rgba(0,0,0,0.4);
+  box-shadow: var(--focus-ring);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .header-actions {
+    flex-direction: row-reverse;
+  }
 }
 
 /* ── Screen-reader only utility ──────────────────────────── */
@@ -565,6 +652,8 @@ kbd {
     transition: transform 0.25s ease;
     width: min(var(--sidebar-w), 90vw);
     border-right: 1px solid var(--amber);
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 
   .sidebar.mobile-open {
@@ -640,4 +729,15 @@ kbd {
 .search-results li:hover {
   background: var(--steel);
   color: var(--white);
+}
+
+/* Hide Geonorge button in mobile view */
+@media (max-width: 768px) {
+  .geonorge-btn {
+    display: none;
+  }
+
+  .btn-mobile-sidebar {
+    display: flex !important;
+  }
 }
