@@ -1,6 +1,6 @@
 /**
  * Geonorge Tilgjengelighet WMS Viewer
- * WCAG 2.1 AA compliant – accessible map application
+ * WCAG 2.1 AA compliant
  */
 
 import 'ol/ol.css';
@@ -55,7 +55,7 @@ const topoSource = new XYZ({
 
 const baseLayer = new TileLayer({ source: osmSource, zIndex: 0 });
 
-// ── Composite WMS layer (root group — renders all icons) ──────────────────────
+// ── Composite WMS layer (root group — renders all icons together) ─────────────
 
 const compositeLayer = new ImageLayer({
   source: new ImageWMS({
@@ -141,108 +141,121 @@ document.querySelectorAll('input[name="basemap"]').forEach(radio => {
   });
 });
 
-// ── GetCapabilities fetch & parse ─────────────────────────────────────────────
+// ── GetCapabilities: regex-based XML parsing ──────────────────────────────────
 //
-// THE DEFINITIVE FIX:
+// Every DOMParser approach failed due to browsers' inconsistent handling of
+// the WMS default namespace (xmlns="http://www.opengis.net/wms"):
+//   - text/xml:  getElementsByTagName / child.tagName break in Firefox/Safari
+//   - text/html: deeply nested <Layer> elements get flattened by the HTML parser
 //
-// The WMS response has xmlns="http://www.opengis.net/wms" as the DEFAULT
-// namespace. When parsed as text/xml, every element is placed in that
-// namespace URI. Then getElementsByTagName('Name') returns NOTHING in
-// Firefox/Safari (they require the NS-aware call), and Chrome returns
-// elements but child.tagName may include a prefix.
-//
-// Parsing as text/html mangles deeply-nested unknown elements — the HTML
-// parser is not designed for arbitrary XML nesting and flattens the tree.
-//
-// THE SOLUTION: strip only the default xmlns declaration from the raw text
-// string BEFORE parsing as text/xml. This leaves all elements namespace-free.
-// After stripping:
-//   - getElementsByTagName('Name')  → works in all browsers
-//   - getElementsByTagName('Layer') → works in all browsers
-//   - child.tagName === 'Layer'     → works in all browsers
-//   - xlink:href attributes on OnlineResource still work via getAttribute
-//
-// The xlink namespace declaration (xmlns:xlink="...") is kept intact since
-// xlink:href attributes need it for getAttributeNS, but getAttribute('xlink:href')
-// also works in all browsers for prefixed attributes.
+// Solution: parse the raw XML string with regex. The WMS GetCapabilities format
+// is well-defined and regular. We find direct <Layer>...</Layer> children by
+// tracking nesting depth manually, then extract Name/Title/LegendURL from
+// each block's header (before its first nested child Layer).
 
-async function fetchAndParseCapabilities() {
+async function fetchCapabilitiesXML() {
   const res = await fetch(CAPABILITIES_URL);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const rawText = await res.text();
-
-  // Strip ONLY the default WMS namespace declaration.
-  // The actual XML has TWO spaces before xmlns (not one):
-  //   <WMS_Capabilities ...  xmlns="http://www.opengis.net/wms"  xmlns:sld=...>
-  // \s+ matches any amount of whitespace before the attribute.
-  const cleanText = rawText.replace(/\s+xmlns="[^"]*"/g, '');
-
-  const doc = new DOMParser().parseFromString(cleanText, 'text/xml');
-
-  // Detect parse error (all browsers put a <parsererror> element on failure)
-  if (doc.querySelector('parsererror')) {
-    throw new Error('XML parse error');
-  }
-
-  return doc;
+  return res.text();
 }
 
-// ── XML helpers ───────────────────────────────────────────────────────────────
-
-/** Text of first direct child with given tagName */
-function childText(el, tag) {
-  for (const c of el.children) {
-    if (c.tagName === tag) return c.textContent.trim();
-  }
-  return '';
+/** Get first occurrence of <Name> or <n> (WMS uses both) in a string */
+function tagText(str, tag) {
+  // The WMS server sometimes uses abbreviated <n> instead of <Name>.
+  // Match whichever is present.
+  const alts = tag === 'Name' ? '(?:Name|n)' : tag;
+  const m = str.match(new RegExp(`<${alts}[^>]*>([\\s\\S]*?)<\\/${alts}>`));
+  return m ? m[1].trim() : '';
 }
 
-/** Get xlink:href from an OnlineResource element */
-function xlinkHref(el) {
-  // Try prefixed attribute first (standard), then plain href fallback
-  return el.getAttribute('xlink:href')
-      || el.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
-      || el.getAttribute('href')
-      || '';
+/** Decode XML entities in a URL string */
+function decodeEntities(str) {
+  return str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
 }
 
 /**
- * Recursively extract layer info from a <Layer> XML element.
- * After stripping the default xmlns, tagName comparisons work directly.
+ * Extract direct <Layer>…</Layer> children from an XML string,
+ * properly handling arbitrary nesting depth.
+ * Returns array of { name, title, legendUrl, innerXml }
  */
-function extractLayer(layerEl) {
-  const name     = childText(layerEl, 'Name');
-  const title    = childText(layerEl, 'Title') || name;
-  const abstract = childText(layerEl, 'Abstract');
+function extractDirectLayers(xml) {
+  const results = [];
+  let i = 0;
 
-  // Legend URL: Layer > Style > LegendURL > OnlineResource[xlink:href]
-  let legendUrl = '';
-  for (const c of layerEl.children) {
-    if (c.tagName === 'Style') {
-      for (const sc of c.children) {
-        if (sc.tagName === 'LegendURL') {
-          for (const lc of sc.children) {
-            if (lc.tagName === 'OnlineResource') {
-              legendUrl = xlinkHref(lc);
-              break;
-            }
-          }
-          break;
-        }
+  while (i < xml.length) {
+    const start = xml.indexOf('<Layer', i);
+    if (start === -1) break;
+
+    // Walk forward finding the matching </Layer> by tracking depth
+    let depth = 1;
+    let j = start + 6;
+    while (j < xml.length && depth > 0) {
+      const nextOpen  = xml.indexOf('<Layer', j);
+      const nextClose = xml.indexOf('</Layer>', j);
+      if (nextClose === -1) { j = xml.length; break; }
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        j = nextOpen + 6;
+      } else {
+        depth--;
+        j = nextClose + 8;
       }
-      break; // Only first Style
     }
+
+    const block = xml.slice(start, j);
+
+    // Header = everything before the first nested <Layer child
+    const firstNested = block.indexOf('<Layer', 6);
+    const header = firstNested > -1 ? block.slice(0, firstNested) : block;
+
+    const name  = tagText(header, 'Name');
+    const title = tagText(header, 'Title') || name;
+
+    // Legend URL lives in: Style > LegendURL > OnlineResource xlink:href
+    let legendUrl = '';
+    const styleBlock = header.match(/<Style>([\s\S]*?)<\/Style>/);
+    if (styleBlock) {
+      const hrefMatch = styleBlock[1].match(/xlink:href="([^"]+)"/);
+      if (hrefMatch) legendUrl = decodeEntities(hrefMatch[1]);
+    }
+
+    // innerXml = content between outer <Layer ...> and </Layer>
+    const innerStart = block.indexOf('>') + 1;
+    const innerEnd   = block.lastIndexOf('</Layer>');
+    const innerXml   = innerStart < innerEnd ? block.slice(innerStart, innerEnd) : '';
+
+    if (name) {
+      results.push({ name, title, legendUrl, innerXml });
+    }
+
+    i = j;
   }
 
-  // Recurse into direct child Layer elements
-  const children = [];
-  for (const c of layerEl.children) {
-    if (c.tagName === 'Layer') {
-      children.push(extractLayer(c));
-    }
-  }
+  return results;
+}
 
-  return { name, title, abstract, legendUrl, children };
+/** Recursively build a layer tree from raw XML */
+function buildLayerData(xml) {
+  return extractDirectLayers(xml).map(layer => ({
+    name:      layer.name,
+    title:     layer.title,
+    legendUrl: layer.legendUrl,
+    children:  buildLayerData(layer.innerXml),
+  }));
+}
+
+/** Parse full capabilities XML → array of top-level group layer objects */
+function parseCapabilities(xml) {
+  // Find Capability element content
+  const capMatch = xml.match(/<Capability[\s\S]*?>([\s\S]*)<\/Capability>/);
+  if (!capMatch) return [];
+
+  // Find the root Layer (tilgjengelighet3) — first Layer inside Capability
+  const rootLayers = extractDirectLayers(capMatch[1]);
+  if (!rootLayers.length) return [];
+
+  // Return the root layer's direct children as top-level groups
+  return buildLayerData(rootLayers[0].innerXml);
 }
 
 // ── OL sublayer factory ───────────────────────────────────────────────────────
@@ -273,14 +286,14 @@ function createSubLayer(layerName) {
 function buildLayerTree(topGroups) {
   elLayerTree.innerHTML = '';
 
-  // ── "Alle lag" composite entry (the root WMS group, on by default) ────────────
+  // ── "Alle lag" composite entry — on by default, toggleable ───────────────────
   const allItem = document.createElement('div');
   allItem.className = 'layer-item layer-item--composite';
 
   const allLabel = document.createElement('label');
   const allCb = document.createElement('input');
   allCb.type = 'checkbox';
-  allCb.checked = true; // on by default
+  allCb.checked = true;
   allCb.setAttribute('aria-label', 'Vis alle lag (sammensatt visning)');
 
   const allSpan = document.createElement('span');
@@ -291,9 +304,7 @@ function buildLayerTree(topGroups) {
   allItem.appendChild(allLabel);
   elLayerTree.appendChild(allItem);
 
-  allCb.addEventListener('change', () => {
-    compositeLayer.setVisible(allCb.checked);
-  });
+  allCb.addEventListener('change', () => compositeLayer.setVisible(allCb.checked));
 
   // ── Divider ───────────────────────────────────────────────────────────────────
   const divider = document.createElement('div');
@@ -301,7 +312,7 @@ function buildLayerTree(topGroups) {
   divider.setAttribute('aria-hidden', 'true');
   elLayerTree.appendChild(divider);
 
-  // ── Individual sublayers from GetCapabilities ──────────────────────────────
+  // ── Individual sublayers from GetCapabilities ─────────────────────────────────
   for (const group of topGroups) {
     const namedChildren = group.children.filter(c => c.name);
     if (group.name && namedChildren.length === 0) {
@@ -371,7 +382,6 @@ function makeLeaf(layer) {
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.setAttribute('aria-label', `Vis lag: ${layer.title}`);
-  if (layer.abstract) cb.title = layer.abstract;
 
   const span = document.createElement('span');
   span.textContent = layer.title;
@@ -467,9 +477,9 @@ function esc(s) {
 async function init() {
   elStatusZoom.textContent = Math.round(map.getView().getZoom());
 
-  let doc;
+  let xml;
   try {
-    doc = await fetchAndParseCapabilities();
+    xml = await fetchCapabilitiesXML();
   } catch (err) {
     console.error('GetCapabilities error:', err);
     elLayerLoading.innerHTML = `<p style="color:var(--red-warn);font-size:.82rem;">
@@ -477,29 +487,11 @@ async function init() {
     return;
   }
 
-  // Navigate: WMS_Capabilities > Capability > Layer (root) > Layer (top-level groups)
-  const capEl = doc.getElementsByTagName('Capability')[0];
-  if (!capEl) {
-    elLayerLoading.textContent = 'Fant ikke Capability-elementet i svaret.';
-    return;
-  }
-
-  const rootLayerEl = capEl.getElementsByTagName('Layer')[0];
-  if (!rootLayerEl) {
-    elLayerLoading.textContent = 'Fant ikke rot-lag i GetCapabilities-svaret.';
-    return;
-  }
-
-  // Collect DIRECT child <Layer> elements of the root layer
-  const topGroups = [];
-  for (const child of rootLayerEl.children) {
-    if (child.tagName === 'Layer') {
-      topGroups.push(extractLayer(child));
-    }
-  }
+  const topGroups = parseCapabilities(xml);
 
   if (topGroups.length === 0) {
-    elLayerLoading.textContent = 'Ingen underlag funnet i GetCapabilities-svaret.';
+    elLayerLoading.innerHTML = `<p style="color:var(--red-warn);font-size:.82rem;">
+      Ingen kartlag funnet i GetCapabilities-svaret.</p>`;
     return;
   }
 
