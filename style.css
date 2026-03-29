@@ -594,3 +594,46 @@ kbd {
   .sidebar { border-right: 2px solid #ffffff; }
   .btn-control { border: 2px solid #ffffff; }
 }
+
+/* ── Search Field ───────────────────────────────────────── */
+.search-input {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--steel);
+  border-radius: var(--radius);
+  background: var(--ink-light);
+  color: var(--fog);
+  margin-bottom: 0.75rem;
+}
+.search-input:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.search-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--steel);
+  border-radius: var(--radius);
+  background: var(--ink-mid);
+}
+
+.search-results li {
+  padding: 0.5rem;
+  cursor: pointer;
+  color: var(--fog);
+  border-bottom: 1px solid var(--steel);
+}
+
+.search-results li:last-child {
+  border-bottom: none;
+}
+
+.search-results li:hover {
+  background: var(--steel);
+  color: var(--white);
+}

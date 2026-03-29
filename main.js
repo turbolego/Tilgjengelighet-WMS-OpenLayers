@@ -95,7 +95,7 @@ map.once('rendercomplete', () => {
   const canvas = elMapContainer.querySelector('canvas');
   if (canvas) {
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', 'Interaktivt kart over tilgjengelighetsdata i Norge');
+    canvas.setAttribute('aria-label', 'Interaktivt kart over tilgjengelighetdata i Norge');
   }
 });
 
@@ -503,3 +503,53 @@ async function init() {
 }
 
 init();
+
+// ── Place Search ─────────────────────────────────────────────────────────────
+const elPlaceSearch = document.getElementById('place-search');
+const elSearchResults = document.getElementById('search-results');
+
+elPlaceSearch.addEventListener('input', async (e) => {
+  const query = e.target.value.trim();
+  if (query.length < 3) {
+    elSearchResults.innerHTML = '';
+    return;
+  }
+
+  try {
+    const res = await fetch(`https://ws.geonorge.no/stedsnavn/v1/navn?sok=${encodeURIComponent(query)}*&treffPerSide=15&side=1`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json();
+    const results = data.navn.map((place) => ({
+      name: place.skrivemåte,
+      lat: place.representasjonspunkt.nord,
+      lon: place.representasjonspunkt.øst,
+      kommune: place.kommuner?.[0]?.kommunenavn || 'Ukjent kommune',
+    }));
+
+    elSearchResults.innerHTML = results
+      .map((result) => `<li data-lat="${result.lat}" data-lon="${result.lon}">${result.name} - ${result.kommune}</li>`)
+      .join('');
+  } catch (err) {
+    console.error('Search error:', err);
+    elSearchResults.innerHTML = '<li>Feil ved henting av søkeresultater.</li>';
+  }
+});
+
+elSearchResults.addEventListener('click', (e) => {
+  const li = e.target.closest('li');
+  if (!li) return;
+
+  const lat = parseFloat(li.getAttribute('data-lat'));
+  const lon = parseFloat(li.getAttribute('data-lon'));
+  if (!isNaN(lat) && !isNaN(lon)) {
+    map.getView().animate({
+      center: fromLonLat([lon, lat]),
+      zoom: 12,
+      duration: 400,
+    });
+  }
+
+  // Close the search results dropdown
+  elSearchResults.innerHTML = '';
+});
