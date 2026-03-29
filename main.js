@@ -13,6 +13,11 @@ import OSM from 'ol/source/OSM';
 import XYZ from 'ol/source/XYZ';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { defaults as defaultControls } from 'ol/control';
+import Feature from 'ol/Feature';
+import Point from 'ol/geom/Point';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
+import { Style, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -552,4 +557,68 @@ elSearchResults.addEventListener('click', (e) => {
 
   // Close the search results dropdown
   elSearchResults.innerHTML = '';
+});
+
+let gpsLayer = null;
+
+const elBtnGPS = document.getElementById('btn-gps');
+
+elBtnGPS.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    alert('Geolokasjon støttes ikke i denne nettleseren.');
+    return;
+  }
+
+  elBtnGPS.disabled = true;
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      const coords = fromLonLat([longitude, latitude]);
+
+      // Create/update marker
+      if (!gpsLayer) {
+        const feature = new Feature({
+          geometry: new Point(coords),
+        });
+
+        feature.setStyle(new Style({
+          image: new CircleStyle({
+            radius: 6,
+            fill: new Fill({ color: '#e8a020' }),
+            stroke: new Stroke({ color: '#ffffff', width: 2 }),
+          }),
+        }));
+
+        const source = new VectorSource({ features: [feature] });
+
+        gpsLayer = new VectorLayer({
+          source,
+          zIndex: 20,
+        });
+
+        map.addLayer(gpsLayer);
+      } else {
+        gpsLayer.getSource().getFeatures()[0].setGeometry(new Point(coords));
+      }
+
+      // Center map
+      map.getView().animate({
+        center: coords,
+        zoom: 14,
+        duration: 500,
+      });
+
+      elBtnGPS.disabled = false;
+    },
+    (err) => {
+      console.error(err);
+      alert('Kunne ikke hente posisjon.');
+      elBtnGPS.disabled = false;
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+    }
+  );
 });

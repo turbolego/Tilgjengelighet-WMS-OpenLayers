@@ -500,6 +500,11 @@ body {
   box-shadow: var(--focus-ring);
 }
 
+.btn-control:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .hint-text {
   font-size: 0.72rem;
   color: var(--mist);
