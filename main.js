@@ -622,3 +622,30 @@ elBtnGPS.addEventListener('click', () => {
     }
   );
 });
+
+document.querySelectorAll('.btn-mobile-sidebar').forEach(button => {
+  button.addEventListener('click', () => {
+    const isOpen = elSidebar.classList.toggle('mobile-open');
+    button.setAttribute('aria-expanded', String(isOpen));
+  });
+});
+
+document.getElementById('btn-zoom-in-mobile')
+  ?.addEventListener('click', () =>
+    elBtnZoomIn.click()
+  );
+
+document.getElementById('btn-zoom-out-mobile')
+  ?.addEventListener('click', () =>
+    elBtnZoomOut.click()
+  );
+
+document.getElementById('btn-reset-view-mobile')
+  ?.addEventListener('click', () =>
+    elBtnReset.click()
+  );
+
+document.getElementById('btn-gps-mobile')
+  ?.addEventListener('click', () =>
+    elBtnGPS.click()
+  );

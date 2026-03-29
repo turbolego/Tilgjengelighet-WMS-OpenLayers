@@ -746,3 +746,53 @@ kbd {
     display: flex !important;
   }
 }
+
+@media (max-width: 768px) {
+  .app-header {
+    display: none;
+  }
+
+  .map-wrapper {
+    position: fixed;
+    inset: 0;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .btn-mobile-sidebar {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 300;
+
+    border-radius: 2rem;
+    padding: 0.6rem 1.1rem;
+
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+  }
+
+  .map-controls-mobile {
+    display: flex;
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 300;
+
+    flex-direction: column;
+    gap: 0.5rem;
+
+    background: rgba(13,17,23,0.75);
+    padding: 0.5rem;
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(6px);
+  }
+
+  .map-controls-mobile .btn-control {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+html, body {
+  touch-action: manipulation;
+}

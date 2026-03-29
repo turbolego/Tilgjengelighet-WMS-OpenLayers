@@ -152,6 +152,29 @@
         aria-label="Interaktivt kart over tilgjengelighetsdata i Norge. Bruk piltaster for å panorere og +/- for zoom."
       ></div>
 
+      <!-- Mobile floating toggle -->
+      <button class="btn-mobile-sidebar"
+              id="btn-mobile-sidebar"
+              aria-expanded="false"
+              aria-controls="layer-panel">
+        <span aria-hidden="true">☰</span> Lag &amp; info
+      </button>
+
+      <!-- Mobile map controls -->
+      <div class="map-controls-mobile" role="group" aria-label="Kartkontroller">
+        <button class="btn-control" id="btn-zoom-in-mobile" aria-label="Zoom inn">
+          <span aria-hidden="true">+</span>
+        </button>
+        <button class="btn-control" id="btn-zoom-out-mobile" aria-label="Zoom ut">
+          <span aria-hidden="true">−</span>
+        </button>
+        <button class="btn-control" id="btn-reset-view-mobile" aria-label="Tilbakestill kartvisning">
+          <span aria-hidden="true">⌂</span>
+        </button>
+        <button class="btn-control" id="btn-gps-mobile" aria-label="Vis min posisjon">
+          <span aria-hidden="true">📍</span>
+        </button>
+      </div>
     </div>
 
   </main>
