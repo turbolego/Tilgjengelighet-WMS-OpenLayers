@@ -263,6 +263,10 @@ body {
   gap: 1px;
 }
 
+.layer-group-children[hidden] {
+  display: none !important;
+}
+
 .layer-item--composite {
   background: rgba(232,160,32,0.08);
   border-radius: var(--radius);
