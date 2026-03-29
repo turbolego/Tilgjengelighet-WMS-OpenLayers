@@ -4,7 +4,7 @@
  */
 
 import 'ol/ol.css';
-import Map from 'ol/Map';
+import OLMap from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
 import ImageLayer from 'ol/layer/Image';
@@ -55,9 +55,7 @@ const topoSource = new XYZ({
 
 const baseLayer = new TileLayer({ source: osmSource, zIndex: 0 });
 
-// ── Composite WMS layer (root group — all icons at once) ──────────────────────
-// Equivalent to: LAYERS=tilgjengelighet3 in the curl example.
-// OpenLayers sends CRS=EPSG:3857 automatically; the server reprojects from 25833.
+// ── Composite WMS layer (root group — renders all icons) ──────────────────────
 
 const compositeLayer = new ImageLayer({
   source: new ImageWMS({
@@ -80,7 +78,7 @@ const compositeLayer = new ImageLayer({
 
 // ── Map ───────────────────────────────────────────────────────────────────────
 
-const map = new Map({
+const map = new OLMap({
   target: 'map',
   layers: [baseLayer, compositeLayer],
   view: new View({
@@ -93,7 +91,6 @@ const map = new Map({
   keyboardEventTarget: document,
 });
 
-// Accessibility: set role on canvas after first render
 map.once('rendercomplete', () => {
   const canvas = elMapContainer.querySelector('canvas');
   if (canvas) {
@@ -112,7 +109,7 @@ function updateLayerCount() {
   elStatusLayers.textContent = state.activeLayers.size;
 }
 
-// ── Keyboard: Enter on map → GetFeatureInfo at center ─────────────────────────
+// ── Keyboard: Enter on focused map → GetFeatureInfo at center ─────────────────
 
 elMapContainer.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -146,46 +143,71 @@ document.querySelectorAll('input[name="basemap"]').forEach(radio => {
 
 // ── GetCapabilities fetch & parse ─────────────────────────────────────────────
 //
-// THE FIX: parse as 'text/html', not 'text/xml'.
+// THE DEFINITIVE FIX:
 //
-// The WMS response has xmlns="http://www.opengis.net/wms" as the default
-// namespace on the root element. When parsed as text/xml, browsers put every
-// element in that namespace. Then:
-//   - getElementsByTagName('Layer') may return 0 in strict parsers
-//   - child.tagName varies: 'Layer' in Chrome, 'wms:Layer' in Firefox
-//   - el.children iteration works but tag comparisons are unreliable
+// The WMS response has xmlns="http://www.opengis.net/wms" as the DEFAULT
+// namespace. When parsed as text/xml, every element is placed in that
+// namespace URI. Then getElementsByTagName('Name') returns NOTHING in
+// Firefox/Safari (they require the NS-aware call), and Chrome returns
+// elements but child.tagName may include a prefix.
 //
-// Parsing as text/html (the HTML parser) is completely namespace-blind:
-//   - All tag names are uppercased: <Layer> → tagName === 'LAYER'
-//   - querySelector('layer'), getElementsByTagName('LAYER') work everywhere
-//   - No namespace declarations affect anything
-// This approach is 100% cross-browser reliable.
+// Parsing as text/html mangles deeply-nested unknown elements — the HTML
+// parser is not designed for arbitrary XML nesting and flattens the tree.
+//
+// THE SOLUTION: strip only the default xmlns declaration from the raw text
+// string BEFORE parsing as text/xml. This leaves all elements namespace-free.
+// After stripping:
+//   - getElementsByTagName('Name')  → works in all browsers
+//   - getElementsByTagName('Layer') → works in all browsers
+//   - child.tagName === 'Layer'     → works in all browsers
+//   - xlink:href attributes on OnlineResource still work via getAttribute
+//
+// The xlink namespace declaration (xmlns:xlink="...") is kept intact since
+// xlink:href attributes need it for getAttributeNS, but getAttribute('xlink:href')
+// also works in all browsers for prefixed attributes.
 
-async function fetchCapabilities() {
-  try {
-    const res = await fetch(CAPABILITIES_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    // Parse as HTML — namespace-blind, all tags uppercased
-    return new DOMParser().parseFromString(text, 'text/html');
-  } catch (err) {
-    console.error('GetCapabilities failed:', err);
-    return null;
+async function fetchAndParseCapabilities() {
+  const res = await fetch(CAPABILITIES_URL);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const rawText = await res.text();
+
+  // Strip ONLY the default WMS namespace declaration.
+  // Keep xmlns:xlink and xmlns:sld — those use prefixes and don't affect
+  // getElementsByTagName matching.
+  const cleanText = rawText.replace(/ xmlns="[^"]*"/g, '');
+
+  const doc = new DOMParser().parseFromString(cleanText, 'text/xml');
+
+  // Detect parse error (all browsers put a <parsererror> element on failure)
+  if (doc.querySelector('parsererror')) {
+    throw new Error('XML parse error');
   }
+
+  return doc;
 }
 
-// Get text of a DIRECT child element (HTML parser uppercases tag names)
+// ── XML helpers ───────────────────────────────────────────────────────────────
+
+/** Text of first direct child with given tagName */
 function childText(el, tag) {
-  const UP = tag.toUpperCase();
-  for (const child of el.children) {
-    if (child.tagName === UP) return child.textContent.trim();
+  for (const c of el.children) {
+    if (c.tagName === tag) return c.textContent.trim();
   }
   return '';
 }
 
+/** Get xlink:href from an OnlineResource element */
+function xlinkHref(el) {
+  // Try prefixed attribute first (standard), then plain href fallback
+  return el.getAttribute('xlink:href')
+      || el.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
+      || el.getAttribute('href')
+      || '';
+}
+
 /**
- * Recursively extract layer metadata from a parsed-as-HTML WMS Layer element.
- * All tag names are UPPERCASED by the HTML parser.
+ * Recursively extract layer info from a <Layer> XML element.
+ * After stripping the default xmlns, tagName comparisons work directly.
  */
 function extractLayer(layerEl) {
   const name     = childText(layerEl, 'Name');
@@ -193,34 +215,29 @@ function extractLayer(layerEl) {
   const abstract = childText(layerEl, 'Abstract');
 
   // Legend URL: Layer > Style > LegendURL > OnlineResource[xlink:href]
-  // The HTML parser lowercases attribute names, so xlink:href becomes just
-  // the local attribute. We try multiple fallbacks.
   let legendUrl = '';
-  for (const child of layerEl.children) {
-    if (child.tagName === 'STYLE') {
-      for (const sc of child.children) {
-        if (sc.tagName === 'LEGENDURL') {
+  for (const c of layerEl.children) {
+    if (c.tagName === 'Style') {
+      for (const sc of c.children) {
+        if (sc.tagName === 'LegendURL') {
           for (const lc of sc.children) {
-            if (lc.tagName === 'ONLINERESOURCE') {
-              legendUrl = lc.getAttribute('xlink:href')
-                       || lc.getAttribute('href')
-                       || lc.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
-                       || '';
+            if (lc.tagName === 'OnlineResource') {
+              legendUrl = xlinkHref(lc);
               break;
             }
           }
           break;
         }
       }
-      break;
+      break; // Only first Style
     }
   }
 
-  // Collect direct child LAYER elements
+  // Recurse into direct child Layer elements
   const children = [];
-  for (const child of layerEl.children) {
-    if (child.tagName === 'LAYER') {
-      children.push(extractLayer(child));
+  for (const c of layerEl.children) {
+    if (c.tagName === 'Layer') {
+      children.push(extractLayer(c));
     }
   }
 
@@ -228,7 +245,6 @@ function extractLayer(layerEl) {
 }
 
 // ── OL sublayer factory ───────────────────────────────────────────────────────
-// Each individual sublayer sits above the composite (zIndex 10).
 
 function createSubLayer(layerName) {
   return new ImageLayer({
@@ -310,7 +326,6 @@ function makeGroup(group) {
 function makeLeaf(layer) {
   if (!layer.name) return document.createDocumentFragment();
 
-  // Create and register the OL sublayer lazily
   if (!state.olLayers.has(layer.name)) {
     const ol = createSubLayer(layer.name);
     map.addLayer(ol);
@@ -321,7 +336,6 @@ function makeLeaf(layer) {
   item.className = 'layer-item';
 
   const label = document.createElement('label');
-
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.setAttribute('aria-label', `Vis lag: ${layer.title}`);
@@ -421,38 +435,39 @@ function esc(s) {
 async function init() {
   elStatusZoom.textContent = Math.round(map.getView().getZoom());
 
-  const doc = await fetchCapabilities();
-
-  if (!doc) {
+  let doc;
+  try {
+    doc = await fetchAndParseCapabilities();
+  } catch (err) {
+    console.error('GetCapabilities error:', err);
     elLayerLoading.innerHTML = `<p style="color:var(--red-warn);font-size:.82rem;">
-      Kunne ikke laste kartlag fra Geonorge. Sjekk nettverkstilkobling.</p>`;
+      Kunne ikke laste kartlag: ${esc(err.message)}</p>`;
     return;
   }
 
-  // With text/html parsing, all tags are UPPERCASED and querySelector works
-  // with lowercase selectors (it upcases internally for HTML documents).
-  const capabilityEl = doc.querySelector('capability');
-  if (!capabilityEl) {
-    elLayerLoading.textContent = 'Uventet svarformat (mangler Capability-element).';
+  // Navigate: WMS_Capabilities > Capability > Layer (root) > Layer (top-level groups)
+  const capEl = doc.getElementsByTagName('Capability')[0];
+  if (!capEl) {
+    elLayerLoading.textContent = 'Fant ikke Capability-elementet i svaret.';
     return;
   }
 
-  const rootLayerEl = capabilityEl.querySelector('layer');
+  const rootLayerEl = capEl.getElementsByTagName('Layer')[0];
   if (!rootLayerEl) {
-    elLayerLoading.textContent = 'Ingen lag funnet i GetCapabilities-svaret.';
+    elLayerLoading.textContent = 'Fant ikke rot-lag i GetCapabilities-svaret.';
     return;
   }
 
-  // Direct child <LAYER> elements of the root layer = top-level groups
+  // Collect DIRECT child <Layer> elements of the root layer
   const topGroups = [];
   for (const child of rootLayerEl.children) {
-    if (child.tagName === 'LAYER') {
+    if (child.tagName === 'Layer') {
       topGroups.push(extractLayer(child));
     }
   }
 
   if (topGroups.length === 0) {
-    elLayerLoading.textContent = 'Ingen underlag funnet.';
+    elLayerLoading.textContent = 'Ingen underlag funnet i GetCapabilities-svaret.';
     return;
   }
 
