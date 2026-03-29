@@ -172,9 +172,10 @@ async function fetchAndParseCapabilities() {
   const rawText = await res.text();
 
   // Strip ONLY the default WMS namespace declaration.
-  // Keep xmlns:xlink and xmlns:sld — those use prefixes and don't affect
-  // getElementsByTagName matching.
-  const cleanText = rawText.replace(/ xmlns="[^"]*"/g, '');
+  // The actual XML has TWO spaces before xmlns (not one):
+  //   <WMS_Capabilities ...  xmlns="http://www.opengis.net/wms"  xmlns:sld=...>
+  // \s+ matches any amount of whitespace before the attribute.
+  const cleanText = rawText.replace(/\s+xmlns="[^"]*"/g, '');
 
   const doc = new DOMParser().parseFromString(cleanText, 'text/xml');
 
@@ -271,6 +272,36 @@ function createSubLayer(layerName) {
 
 function buildLayerTree(topGroups) {
   elLayerTree.innerHTML = '';
+
+  // ── "Alle lag" composite entry (the root WMS group, on by default) ────────────
+  const allItem = document.createElement('div');
+  allItem.className = 'layer-item layer-item--composite';
+
+  const allLabel = document.createElement('label');
+  const allCb = document.createElement('input');
+  allCb.type = 'checkbox';
+  allCb.checked = true; // on by default
+  allCb.setAttribute('aria-label', 'Vis alle lag (sammensatt visning)');
+
+  const allSpan = document.createElement('span');
+  allSpan.textContent = 'Alle lag (sammensatt)';
+  allSpan.style.fontWeight = '600';
+
+  allLabel.append(allCb, allSpan);
+  allItem.appendChild(allLabel);
+  elLayerTree.appendChild(allItem);
+
+  allCb.addEventListener('change', () => {
+    compositeLayer.setVisible(allCb.checked);
+  });
+
+  // ── Divider ───────────────────────────────────────────────────────────────────
+  const divider = document.createElement('div');
+  divider.className = 'layer-divider';
+  divider.setAttribute('aria-hidden', 'true');
+  elLayerTree.appendChild(divider);
+
+  // ── Individual sublayers from GetCapabilities ──────────────────────────────
   for (const group of topGroups) {
     const namedChildren = group.children.filter(c => c.name);
     if (group.name && namedChildren.length === 0) {
@@ -279,6 +310,7 @@ function buildLayerTree(topGroups) {
       elLayerTree.appendChild(makeGroup(group));
     }
   }
+
   elLayerTree.hidden = false;
 }
 
