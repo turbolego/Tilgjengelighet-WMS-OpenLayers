@@ -64,6 +64,54 @@ body { background: var(--ink); color: var(--paper); }
   right: 0 !important;
 }
 .ol-attribution a { color: var(--fog) !important; }
+.ol-attribution button { color: var(--mist) !important; background: none !important; }
+
+/* ── Native OL zoom slot ─────────────────────────────────── */
+/* OL renders the zoom control inside #ol-zoom-target.
+   We strip its default absolute positioning and let the
+   flexbox of .map-controls-bar handle layout. */
+.ol-zoom-slot { display: contents; }
+
+.ol-zoom-slot .ol-zoom {
+  /* Reset OL's default fixed/absolute position */
+  position: static !important;
+  display: contents;
+  background: none !important;
+  padding: 0 !important;
+}
+
+/* Style the two native zoom buttons to match .btn-map */
+.ol-zoom-slot .ol-zoom-in,
+.ol-zoom-slot .ol-zoom-out {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ctrl-size);
+  height: var(--ctrl-size);
+  background: rgba(13,17,23,0.88) !important;
+  backdrop-filter: blur(10px);
+  color: var(--fog) !important;
+  border: 1px solid var(--steel) !important;
+  border-radius: var(--radius) !important;
+  font-size: 1.25rem !important;
+  font-family: var(--font-mono) !important;
+  cursor: pointer;
+  transition: background var(--trans), color var(--trans), border-color var(--trans);
+  padding: 0 !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+}
+.ol-zoom-slot .ol-zoom-in:hover,
+.ol-zoom-slot .ol-zoom-out:hover {
+  background: var(--ink-light) !important;
+  color: var(--white) !important;
+  border-color: var(--amber) !important;
+}
+.ol-zoom-slot .ol-zoom-in:focus-visible,
+.ol-zoom-slot .ol-zoom-out:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring) !important;
+}
 
 /* ── Status bar ──────────────────────────────────────────── */
 .map-statusbar {

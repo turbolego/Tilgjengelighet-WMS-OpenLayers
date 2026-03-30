@@ -30,12 +30,20 @@
   </div>
 
   <!-- Floating controls bottom-right -->
-  <div class="map-controls-bar" role="group" aria-label="Kartkontroller">
-    <button class="btn-map" id="btn-zoom-in"    aria-label="Zoom inn">+</button>
-    <button class="btn-map" id="btn-zoom-out"   aria-label="Zoom ut">−</button>
-    <button class="btn-map" id="btn-reset-view" aria-label="Tilbakestill kartvisning">⌂</button>
-    <button class="btn-map" id="btn-gps"        aria-label="Vis min posisjon">📍</button>
+  <div class="map-controls-bar" id="map-controls-bar" role="group" aria-label="Kartkontroller">
+
+    <!-- OL native Zoom control renders here (+ and − buttons) -->
+    <div id="ol-zoom-target" class="ol-zoom-slot"></div>
+
+    <!-- Reset view -->
+    <button class="btn-map" id="btn-reset-view" aria-label="Tilbakestill kartvisning til Norge">⌂</button>
+
+    <!-- GPS -->
+    <button class="btn-map" id="btn-gps" aria-label="Vis min posisjon">📍</button>
+
     <div class="btn-map-divider" aria-hidden="true"></div>
+
+    <!-- Settings / cogwheel -->
     <button class="btn-map btn-map--cog" id="btn-open-dialog"
             aria-label="Åpne innstillinger og kartlag"
             aria-haspopup="dialog">

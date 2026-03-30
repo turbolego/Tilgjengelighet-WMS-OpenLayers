@@ -12,7 +12,8 @@ import ImageWMS from 'ol/source/ImageWMS';
 import OSM from 'ol/source/OSM';
 import XYZ from 'ol/source/XYZ';
 import { fromLonLat, toLonLat } from 'ol/proj';
-import { defaults as defaultControls } from 'ol/control';
+import { defaults as defaultControls, Attribution } from 'ol/control';
+import Zoom from 'ol/control/Zoom';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import VectorLayer from 'ol/layer/Vector';
@@ -41,8 +42,6 @@ const elLayerTree     = document.getElementById('layer-tree');
 const elFeatureInfo   = document.getElementById('feature-info');
 const elStatusZoom    = document.getElementById('status-zoom');
 const elStatusLayers  = document.getElementById('status-layers');
-const elBtnZoomIn     = document.getElementById('btn-zoom-in');
-const elBtnZoomOut    = document.getElementById('btn-zoom-out');
 const elBtnReset      = document.getElementById('btn-reset-view');
 const elBtnGPS        = document.getElementById('btn-gps');
 const elBtnOpen       = document.getElementById('btn-open-dialog');
@@ -86,6 +85,19 @@ const compositeLayer = new ImageLayer({
 });
 
 // ── Map ───────────────────────────────────────────────────────────────────────
+// Native OL Zoom control is targeted into #ol-zoom-target inside our floating
+// controls bar. Attribution renders inside the map canvas area as normal.
+
+const zoomControl = new Zoom({
+  target:          'ol-zoom-target',
+  zoomInLabel:     '+',
+  zoomOutLabel:    '−',
+  zoomInTipLabel:  'Zoom inn',
+  zoomOutTipLabel: 'Zoom ut',
+  duration:        250,
+});
+
+const attributionControl = new Attribution({ collapsible: true });
 
 const map = new OLMap({
   target: 'map',
@@ -96,7 +108,7 @@ const map = new OLMap({
     minZoom: 3,
     maxZoom: 18,
   }),
-  controls: defaultControls({ zoom: false, rotate: false, attribution: true }),
+  controls: [zoomControl, attributionControl],
   keyboardEventTarget: document,
 });
 
@@ -128,10 +140,9 @@ elMapContainer.addEventListener('keydown', (e) => {
 });
 
 // ── Map controls ──────────────────────────────────────────────────────────────
+// Zoom in/out handled by native OL Zoom control (see above).
 
-elBtnZoomIn.addEventListener('click',  () => map.getView().animate({ zoom: map.getView().getZoom() + 1, duration: 250 }));
-elBtnZoomOut.addEventListener('click', () => map.getView().animate({ zoom: map.getView().getZoom() - 1, duration: 250 }));
-elBtnReset.addEventListener('click',   () => map.getView().animate({ center: NORWAY_CENTER, zoom: NORWAY_ZOOM, duration: 400 }));
+elBtnReset.addEventListener('click', () => map.getView().animate({ center: NORWAY_CENTER, zoom: NORWAY_ZOOM, duration: 400 }));
 
 // ── Dialog open/close ─────────────────────────────────────────────────────────
 
