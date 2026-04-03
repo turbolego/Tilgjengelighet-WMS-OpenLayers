@@ -15,79 +15,42 @@
 
   <a class="skip-link" href="#map">Hopp til kartet</a>
 
-  <!-- Full-screen map -->
-  <div
-    id="map"
-    class="map-container"
-    tabindex="0"
-    role="application"
-    aria-label="Interaktivt kart over tilgjengelighetsdata i Norge."
-  ></div>
+  <!-- Full-screen map target -->
+  <div id="map" class="map-container" tabindex="0" role="application"
+       aria-label="Interaktivt kart over tilgjengelighetsdata i Norge."></div>
 
-  <!-- Status bar bottom-left -->
-  <div class="map-statusbar" role="status" aria-live="polite" aria-atomic="true">
-    Zoom: <span id="status-zoom">5</span> &nbsp;·&nbsp; Lag: <span id="status-layers">0</span>
+  <!-- ── Feature info modal (same pattern as settings) ───────────────────── -->
+  <div id="popup" class="ol-feature-modal ol-unselectable" hidden>
+    <div class="feature-modal-inner">
+      <header class="settings-header">
+        <span class="settings-title" id="popup-title">Stedsinfo</span>
+        <button id="popup-closer" class="settings-close" aria-label="Lukk stedsinfo">✕</button>
+      </header>
+      <div class="feature-modal-body" id="popup-content"></div>
+    </div>
   </div>
 
-  <!-- Floating controls bottom-right -->
-  <div class="map-controls-bar" id="map-controls-bar" role="group" aria-label="Kartkontroller">
+  <!-- ── Settings panel ───────────────────────────────────────────────────── -->
+  <div id="settings-panel" class="ol-settings-panel ol-unselectable" hidden>
+    <div class="settings-inner">
 
-    <!-- OL native Zoom control renders here (+ and − buttons) -->
-    <div id="ol-zoom-target" class="ol-zoom-slot"></div>
-
-    <!-- Reset view -->
-    <button class="btn-map" id="btn-reset-view" aria-label="Tilbakestill kartvisning til Norge">⌂</button>
-
-    <!-- GPS -->
-    <button class="btn-map" id="btn-gps" aria-label="Vis min posisjon">📍</button>
-
-    <div class="btn-map-divider" aria-hidden="true"></div>
-
-    <!-- Settings / cogwheel -->
-    <button class="btn-map btn-map--cog" id="btn-open-dialog"
-            aria-label="Åpne innstillinger og kartlag"
-            aria-haspopup="dialog">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    </button>
-  </div>
-
-  <!-- Settings dialog -->
-  <dialog id="settings-dialog" aria-label="Kartinnstillinger">
-    <div class="dialog-inner">
-
-      <header class="dialog-header">
-        <h2 class="dialog-title">
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-          Innstillinger
-        </h2>
-        <button class="btn-close" id="btn-close-dialog" aria-label="Lukk innstillinger">
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+      <header class="settings-header">
+        <span class="settings-title">Innstillinger</span>
+        <button id="btn-close-settings" class="settings-close" aria-label="Lukk innstillinger">✕</button>
       </header>
 
-      <div class="dialog-body">
+      <div class="settings-body">
 
-        <section class="dialog-section">
-          <h3 class="dialog-section-heading">Søk etter sted</h3>
+        <section class="settings-section">
+          <h3 class="settings-heading">Søk etter sted</h3>
           <input type="search" id="place-search" class="search-input"
-            placeholder="Skriv inn stedsnavn…"
-            aria-label="Søk etter sted"
-            autocomplete="off" />
-          <ul id="search-results" class="search-results" aria-live="polite" aria-label="Søkeresultater"></ul>
+            placeholder="Skriv inn stedsnavn…" aria-label="Søk etter sted" autocomplete="off" />
+          <ul id="search-results" class="search-results" aria-live="polite"></ul>
         </section>
 
-        <section class="dialog-section">
-          <h3 class="dialog-section-heading">Kartlag</h3>
-          <p class="dialog-desc" id="layer-hint">Velg hvilke lag du vil vise på kartet.</p>
+        <section class="settings-section">
+          <h3 class="settings-heading">Kartlag</h3>
+          <p id="layer-hint" class="settings-desc">Velg hvilke lag du vil vise på kartet.</p>
           <div id="layer-loading" class="loading-state" aria-live="polite">
             <div class="spinner" aria-hidden="true"></div>
             <span>Laster kartlag…</span>
@@ -95,17 +58,8 @@
           <div id="layer-tree" role="tree" aria-labelledby="layer-hint" hidden></div>
         </section>
 
-        <section class="dialog-section">
-          <h3 class="dialog-section-heading">Stedsinfo</h3>
-          <div id="feature-info" class="feature-info-panel"
-               role="region" aria-live="polite" aria-atomic="true"
-               aria-label="Informasjon om valgt punkt">
-            <p class="feature-info-placeholder">Klikk på kartet for å hente informasjon om et punkt.</p>
-          </div>
-        </section>
-
-        <section class="dialog-section">
-          <h3 class="dialog-section-heading">Bakgrunnskart</h3>
+        <section class="settings-section">
+          <h3 class="settings-heading">Bakgrunnskart</h3>
           <fieldset class="basemap-fieldset">
             <legend class="sr-only">Velg bakgrunnskart</legend>
             <label class="radio-label"><input type="radio" name="basemap" value="osm" checked /> OpenStreetMap</label>
@@ -116,13 +70,35 @@
 
       </div>
 
-      <footer class="dialog-footer">
+      <footer class="settings-footer">
         <a href="https://www.geonorge.no/" target="_blank" rel="noopener">Kartverket / Geonorge</a>
-        &nbsp;·&nbsp; © Statens kartverk
+        · © Statens kartverk
       </footer>
-
     </div>
-  </dialog>
+  </div>
+
+  <!-- ── Unified button bar (zoom + actions) ──────────────────────────────── -->
+  <!-- Single OL Control — one positioned group, no overlap possible -->
+  <div id="action-bar" class="ol-action-bar ol-unselectable ol-control">
+    <button id="btn-zoom-in"  aria-label="Zoom inn">+</button>
+    <button id="btn-zoom-out" aria-label="Zoom ut">−</button>
+    <hr class="action-bar-divider" aria-hidden="true" />
+    <button id="btn-reset-view" aria-label="Tilbakestill kartvisning til Norge">⌂</button>
+    <button id="btn-gps"        aria-label="Vis min posisjon">📍</button>
+    <hr class="action-bar-divider" aria-hidden="true" />
+    <button id="btn-open-settings" aria-label="Åpne innstillinger og kartlag" aria-expanded="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ── Status control ────────────────────────────────────────────────────── -->
+  <div id="status-bar" class="ol-status-bar ol-unselectable ol-control"
+       role="status" aria-live="polite" aria-atomic="true">
+    Zoom: <span id="status-zoom">5</span> · Lag: <span id="status-layers">0</span>
+  </div>
 
   <script type="module" src="main.js"></script>
 </body>
