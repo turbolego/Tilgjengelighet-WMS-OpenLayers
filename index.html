@@ -30,6 +30,19 @@
     </div>
   </div>
 
+  <!-- ── Highscore modal ──────────────────────────────────────────────────── -->
+  <div id="highscore-modal" class="ol-feature-modal ol-unselectable" hidden>
+    <div class="feature-modal-inner highscore-modal-inner">
+      <header class="settings-header">
+        <span class="settings-title" id="highscore-title">🏆 Toppliste – Universelt tilgjengelige veier</span>
+        <button id="highscore-closer" class="settings-close" aria-label="Lukk toppliste">✕</button>
+      </header>
+      <div class="feature-modal-body" id="highscore-content">
+        <p class="highscore-intro">Skanner kartvisningen for veier som er tilgjengelige for alle (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Settings panel ───────────────────────────────────────────────────── -->
   <div id="settings-panel" class="ol-settings-panel ol-unselectable" hidden>
     <div class="settings-inner">
@@ -85,6 +98,7 @@
     <hr class="action-bar-divider" aria-hidden="true" />
     <button id="btn-reset-view" aria-label="Tilbakestill kartvisning til Norge">⌂</button>
     <button id="btn-gps"        aria-label="Vis min posisjon">📍</button>
+    <button id="btn-highscore"  aria-label="Vis toppliste over tilgjengelige veier">🏆</button>
     <hr class="action-bar-divider" aria-hidden="true" />
     <button id="btn-open-settings" aria-label="Åpne innstillinger og kartlag" aria-expanded="false">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

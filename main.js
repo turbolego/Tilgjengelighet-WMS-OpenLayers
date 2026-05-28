@@ -64,6 +64,12 @@ const elPopup        = document.getElementById('popup');
 const elPopupContent = document.getElementById('popup-content');
 const elPopupCloser  = document.getElementById('popup-closer');
 
+// Highscore refs
+const elHighscoreModal   = document.getElementById('highscore-modal');
+const elHighscoreContent = document.getElementById('highscore-content');
+const elHighscoreCloser  = document.getElementById('highscore-closer');
+const elBtnHighscore     = document.getElementById('btn-highscore');
+
 // ── Base layers ───────────────────────────────────────────────────────────────
 
 const osmSource = new OSM();
@@ -116,6 +122,10 @@ const popupControl = new Control({
   element: elPopup,
 });
 
+const highscoreControl = new Control({
+  element: elHighscoreModal,
+});
+
 const actionBarControl = new Control({
   element: document.getElementById('action-bar'),
 });
@@ -141,7 +151,7 @@ const map = new OLMap({
     minZoom: 3,
     maxZoom: 18,
   }),
-  controls: [popupControl, actionBarControl, settingsPanelControl, statusBarControl, attributionControl],
+  controls: [popupControl, highscoreControl, actionBarControl, settingsPanelControl, statusBarControl, attributionControl],
   keyboardEventTarget: document,
 });
 
@@ -210,6 +220,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!elSettingsPanel.hidden) closeSettings();
     else if (!elPopup.hidden) closePopup();
+    else if (!elHighscoreModal.hidden) closeHighscore();
   }
 });
 
@@ -226,9 +237,15 @@ document.querySelectorAll('input[name="basemap"]').forEach(radio => {
 // ── GetCapabilities: regex-based XML parsing ──────────────────────────────────
 
 async function fetchCapabilitiesXML() {
-  const res = await fetch(CAPABILITIES_URL);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(CAPABILITIES_URL, { signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function tagText(str, tag) {
@@ -690,30 +707,361 @@ elBtnGPS.addEventListener('click', () => {
   );
 });
 
+// ── Highscore modal open/close ────────────────────────────────────────────────
+
+function openHighscore() {
+  elHighscoreModal.hidden = false;
+}
+
+function closeHighscore() {
+  elHighscoreModal.hidden = true;
+}
+
+elHighscoreCloser.addEventListener('click', () => {
+  closeHighscore();
+  elBtnHighscore.focus();
+});
+
+elHighscoreModal.addEventListener('click', (e) => {
+  if (e.target === elHighscoreModal) closeHighscore();
+});
+
+// ── Highscore data scanning ───────────────────────────────────────────────────
+
+/**
+ * Parses GML GetFeatureInfo response into feature objects with real coordinates.
+ */
+function parseGMLFeatureInfo(gmlText) {
+  const features = [];
+  // Match each feature block (pattern: <*_feature>...</*_feature>)
+  const featureBlocks = gmlText.matchAll(/<(\w+_feature)>([\s\S]*?)<\/\1>/g);
+
+  for (const [, , block] of featureBlocks) {
+    const props = new Map();
+    const images = [];
+
+    // Extract bounding box coordinates
+    const boxMatch = block.match(/<gml:coordinates>([\d.,\s]+)<\/gml:coordinates>/);
+    let centerX = 0, centerY = 0;
+    if (boxMatch) {
+      const coords = boxMatch[1].trim().split(/\s+/);
+      if (coords.length === 2) {
+        const [x1, y1] = coords[0].split(',').map(Number);
+        const [x2, y2] = coords[1].split(',').map(Number);
+        centerX = (x1 + x2) / 2;
+        centerY = (y1 + y2) / 2;
+      }
+    }
+
+    // Extract all property elements (simple text content tags)
+    const propMatches = block.matchAll(/<(?!gml:)(\w+)>([^<]*)<\/\1>/g);
+    for (const [, key, value] of propMatches) {
+      const v = value.trim();
+      props.set(key, v);
+      if (/^bildefil[123]$/i.test(key) && v) images.push(v);
+    }
+
+    const objid = props.get('objid') || props.get('lokalid') || '';
+    if (objid) {
+      features.push({ layerName: '', featureId: objid, props, images, centerX, centerY });
+    }
+  }
+
+  return features;
+}
+
+/**
+ * Scans the current map view using a grid of GetFeatureInfo requests
+ * to find fully accessible road segments.
+ */
+async function scanForHighscoreData() {
+  const view = map.getView();
+  const extent = view.calculateExtent(map.getSize());
+
+  // Use the turvei layers which contain road accessibility data
+  const queryLayers = 'tilgjengelighet3';
+
+  const gridSize = 6; // 6x6 grid = 36 requests
+  const imgWidth = 101;
+  const imgHeight = 101;
+  const featureCount = 50;
+
+  const xMin = extent[0], yMin = extent[1], xMax = extent[2], yMax = extent[3];
+  const xStep = (xMax - xMin) / gridSize;
+  const yStep = (yMax - yMin) / gridSize;
+
+  const allFeatures = new Map(); // keyed by objid to deduplicate
+
+  const requests = [];
+  for (let xi = 0; xi < gridSize; xi++) {
+    for (let yi = 0; yi < gridSize; yi++) {
+      const cellXMin = xMin + xi * xStep;
+      const cellYMin = yMin + yi * yStep;
+      const cellXMax = cellXMin + xStep;
+      const cellYMax = cellYMin + yStep;
+      const bbox = `${cellXMin},${cellYMin},${cellXMax},${cellYMax}`;
+
+      const url = `${WMS_URL}?` + new URLSearchParams({
+        QUERY_LAYERS: queryLayers,
+        INFO_FORMAT: 'application/vnd.ogc.gml',
+        REQUEST: 'GetFeatureInfo',
+        SERVICE: 'WMS',
+        VERSION: '1.3.0',
+        FORMAT: 'image/png',
+        STYLES: '',
+        TRANSPARENT: 'true',
+        LAYERS: queryLayers,
+        language: 'Norwegian',
+        FEATURE_COUNT: String(featureCount),
+        I: '50',
+        J: '50',
+        WIDTH: String(imgWidth),
+        HEIGHT: String(imgHeight),
+        CRS: 'EPSG:3857',
+        BBOX: bbox,
+      }).toString();
+
+      requests.push(url);
+    }
+  }
+
+  // Execute requests in parallel batches of 6
+  const batchSize = 6;
+  for (let i = 0; i < requests.length; i += batchSize) {
+    const batch = requests.slice(i, i + batchSize);
+    const responses = await Promise.allSettled(batch.map(url => fetch(url).then(r => r.text())));
+
+    for (const result of responses) {
+      if (result.status !== 'fulfilled') continue;
+      const features = parseGMLFeatureInfo(result.value);
+      for (const feat of features) {
+        const objid = feat.props.get('objid') || feat.props.get('lokalid') || feat.featureId;
+        if (objid && !allFeatures.has(objid)) {
+          allFeatures.set(objid, feat);
+        }
+      }
+    }
+  }
+
+  return [...allFeatures.values()];
+}
+
+/**
+ * Filters features to only those that are fully accessible on all 4 types.
+ */
+function filterFullyAccessible(features) {
+  return features.filter(f => {
+    const r1 = f.props.get('tilgjengvurderingrulleman');
+    const r2 = f.props.get('tilgjengvurderingrulleauto');
+    const r3 = f.props.get('tilgjengvurderingelrullestol');
+    const r4 = f.props.get('tilgjengvurderingsyn');
+    return r1 === 'Tilgjengelig' && r2 === 'Tilgjengelig' &&
+           r3 === 'Tilgjengelig' && r4 === 'Tilgjengelig';
+  });
+}
+
+/**
+ * Renders the highscore tables from the collected features.
+ */
+function renderHighscore(features) {
+  const accessible = filterFullyAccessible(features);
+
+  if (accessible.length === 0) {
+    elHighscoreContent.innerHTML = `
+      <p class="highscore-intro">Skanner kartvisningen for veier som er tilgjengelige for alle (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
+      <p class="highscore-empty">Ingen universelt tilgjengelige veier funnet i dette kartområdet. Prøv å zoome inn på et område med turveier.</p>
+      <p class="highscore-empty" style="margin-top:.5rem">Tips: Zoom inn på byer/tettsteder for å finne kartlagte turstier.</p>
+    `;
+    return;
+  }
+
+  // Compute stats
+  const totalSegmentLength = accessible.reduce((sum, f) => {
+    const len = parseFloat(f.props.get('segmentlengde') || '0');
+    return sum + (isNaN(len) ? 0 : len);
+  }, 0);
+
+  const avgStigning = accessible.reduce((sum, f) => {
+    const s = parseFloat(f.props.get('stigning') || '0');
+    return sum + (isNaN(s) ? 0 : s);
+  }, 0) / accessible.length;
+
+  // Sort by segment length (longest first)
+  const byLength = [...accessible]
+    .map(f => ({ ...f, segmentlengde: parseFloat(f.props.get('segmentlengde') || '0') }))
+    .filter(f => !isNaN(f.segmentlengde) && f.segmentlengde > 0)
+    .sort((a, b) => b.segmentlengde - a.segmentlengde)
+    .slice(0, 10);
+
+  // Sort by steepest (highest stigning first)
+  const bySteepness = [...accessible]
+    .map(f => ({ ...f, stigning: parseFloat(f.props.get('stigning') || '0') }))
+    .filter(f => !isNaN(f.stigning) && f.stigning > 0)
+    .sort((a, b) => b.stigning - a.stigning)
+    .slice(0, 10);
+
+  // Sort by widest (bredde)
+  const byWidth = [...accessible]
+    .map(f => ({ ...f, bredde: parseFloat(f.props.get('bredde') || '0') }))
+    .filter(f => !isNaN(f.bredde) && f.bredde > 0)
+    .sort((a, b) => b.bredde - a.bredde)
+    .slice(0, 10);
+
+  // Sort by flattest (lowest stigning)
+  const byFlattest = [...accessible]
+    .map(f => ({ ...f, stigning: parseFloat(f.props.get('stigning') || '0') }))
+    .filter(f => !isNaN(f.stigning) && f.stigning >= 0)
+    .sort((a, b) => a.stigning - b.stigning)
+    .slice(0, 10);
+
+  let html = `
+    <p class="highscore-intro">Veier tilgjengelige for alle i gjeldende kartvisning (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
+
+    <div class="highscore-stats">
+      <div class="highscore-stat-card">
+        <div class="stat-value">${accessible.length}</div>
+        <div class="stat-label">Segmenter funnet</div>
+      </div>
+      <div class="highscore-stat-card">
+        <div class="stat-value">${(totalSegmentLength / 1000).toFixed(2)} km</div>
+        <div class="stat-label">Total lengde</div>
+      </div>
+      <div class="highscore-stat-card">
+        <div class="stat-value">${avgStigning.toFixed(1)}%</div>
+        <div class="stat-label">Snitt stigning</div>
+      </div>
+    </div>
+  `;
+
+  // Longest roads
+  if (byLength.length > 0) {
+    html += `<div class="highscore-section"><h3>🏅 Lengste tilgjengelige veier</h3>`;
+    html += `<table class="highscore-table"><thead><tr><th>#</th><th>Veitype</th><th>Lengde</th><th>Stigning</th><th>Kommune</th><th></th></tr></thead><tbody>`;
+    byLength.forEach((f, i) => {
+      html += `<tr>
+        <td class="highscore-rank">${i + 1}</td>
+        <td>${esc(f.props.get('veitype') || '—')}</td>
+        <td>${f.segmentlengde.toFixed(1)} m</td>
+        <td>${f.props.get('stigning') || '—'}%</td>
+        <td>${esc(f.props.get('kommune') || '—')}</td>
+        <td><button class="highscore-zoom-btn" data-x="${f.centerX}" data-y="${f.centerY}" aria-label="Zoom til vei">Zoom til veien</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Steepest accessible roads
+  if (bySteepness.length > 0) {
+    html += `<div class="highscore-section"><h3>⛰️ Bratteste tilgjengelige veier</h3>`;
+    html += `<table class="highscore-table"><thead><tr><th>#</th><th>Veitype</th><th>Stigning</th><th>Lengde</th><th>Kommune</th><th></th></tr></thead><tbody>`;
+    bySteepness.forEach((f, i) => {
+      html += `<tr>
+        <td class="highscore-rank">${i + 1}</td>
+        <td>${esc(f.props.get('veitype') || '—')}</td>
+        <td>${f.stigning.toFixed(1)}%</td>
+        <td>${f.props.get('segmentlengde') || '—'} m</td>
+        <td>${esc(f.props.get('kommune') || '—')}</td>
+        <td><button class="highscore-zoom-btn" data-x="${f.centerX}" data-y="${f.centerY}" aria-label="Zoom til vei">Zoom til veien</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Widest accessible roads
+  if (byWidth.length > 0) {
+    html += `<div class="highscore-section"><h3>↔️ Bredeste tilgjengelige veier</h3>`;
+    html += `<table class="highscore-table"><thead><tr><th>#</th><th>Veitype</th><th>Bredde</th><th>Lengde</th><th>Kommune</th><th></th></tr></thead><tbody>`;
+    byWidth.forEach((f, i) => {
+      html += `<tr>
+        <td class="highscore-rank">${i + 1}</td>
+        <td>${esc(f.props.get('veitype') || '—')}</td>
+        <td>${f.bredde.toFixed(0)} cm</td>
+        <td>${f.props.get('segmentlengde') || '—'} m</td>
+        <td>${esc(f.props.get('kommune') || '—')}</td>
+        <td><button class="highscore-zoom-btn" data-x="${f.centerX}" data-y="${f.centerY}" aria-label="Zoom til vei">Zoom til veien</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Flattest accessible roads
+  if (byFlattest.length > 0) {
+    html += `<div class="highscore-section"><h3>🛤️ Flateste tilgjengelige veier</h3>`;
+    html += `<table class="highscore-table"><thead><tr><th>#</th><th>Veitype</th><th>Stigning</th><th>Lengde</th><th>Kommune</th><th></th></tr></thead><tbody>`;
+    byFlattest.forEach((f, i) => {
+      html += `<tr>
+        <td class="highscore-rank">${i + 1}</td>
+        <td>${esc(f.props.get('veitype') || '—')}</td>
+        <td>${f.stigning.toFixed(1)}%</td>
+        <td>${f.props.get('segmentlengde') || '—'} m</td>
+        <td>${esc(f.props.get('kommune') || '—')}</td>
+        <td><button class="highscore-zoom-btn" data-x="${f.centerX}" data-y="${f.centerY}" aria-label="Zoom til vei">Zoom til veien</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  elHighscoreContent.innerHTML = html;
+}
+
+// ── Highscore zoom-to-road handler (delegated) ───────────────────────────────
+
+elHighscoreContent.addEventListener('click', (e) => {
+  const btn = e.target.closest('.highscore-zoom-btn');
+  if (!btn) return;
+  const x = parseFloat(btn.dataset.x);
+  const y = parseFloat(btn.dataset.y);
+  if (isNaN(x) || isNaN(y)) return;
+  closeHighscore();
+  map.getView().animate({ center: [x, y], zoom: 16, duration: 500 });
+});
+
+// ── Highscore button handler ──────────────────────────────────────────────────
+
+elBtnHighscore.addEventListener('click', async () => {
+  openHighscore();
+  elHighscoreContent.innerHTML = `
+    <p class="highscore-intro">Skanner kartvisningen for veier som er tilgjengelige for alle (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
+    <div class="highscore-loading"><div class="spinner"></div> Skanner kartområdet… dette kan ta noen sekunder.</div>
+  `;
+
+  try {
+    const features = await scanForHighscoreData();
+    renderHighscore(features);
+  } catch (err) {
+    console.error('Highscore scan error:', err);
+    elHighscoreContent.innerHTML = `
+      <p class="highscore-intro">Skanner kartvisningen for veier som er tilgjengelige for alle.</p>
+      <p style="color:var(--red-warn);font-size:.82rem;">Feil ved skanning: ${esc(err.message)}</p>
+    `;
+  }
+});
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function init() {
   elStatusZoom.textContent = Math.round(map.getView().getZoom());
 
-  let xml;
   try {
-    xml = await fetchCapabilitiesXML();
+    const xml = await fetchCapabilitiesXML();
+
+    const topGroups = parseCapabilities(xml);
+    if (topGroups.length === 0) {
+      elLayerLoading.innerHTML = `<p style="color:var(--red-warn);font-size:.82rem;">Ingen kartlag funnet.</p>`;
+      return;
+    }
+
+    topGroups.sort((a, b) => a.title.localeCompare(b.title, 'no'));
+    elLayerLoading.hidden = true;
+    buildLayerTree(topGroups);
+    updateLayerCount();
   } catch (err) {
-    console.error('GetCapabilities error:', err);
-    elLayerLoading.innerHTML = `<p style="color:var(--red-warn);font-size:.82rem;">Kunne ikke laste kartlag: ${esc(err.message)}</p>`;
-    return;
+    console.error('Init error:', err);
+    const msg = err.name === 'AbortError'
+      ? 'Tidsavbrudd ved lasting av kartlag. Prøv å laste siden på nytt.'
+      : `Kunne ikke laste kartlag: ${esc(err.message)}`;
+    elLayerLoading.innerHTML = `<p style="color:var(--red-warn);font-size:.82rem;">${msg}</p>`;
   }
-
-  const topGroups = parseCapabilities(xml);
-  if (topGroups.length === 0) {
-    elLayerLoading.innerHTML = `<p style="color:var(--red-warn);font-size:.82rem;">Ingen kartlag funnet.</p>`;
-    return;
-  }
-
-  topGroups.sort((a, b) => a.title.localeCompare(b.title, 'no'));
-  elLayerLoading.hidden = true;
-  buildLayerTree(topGroups);
-  updateLayerCount();
 }
 
 init();
