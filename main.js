@@ -781,10 +781,11 @@ async function scanForHighscoreData() {
   // Use the turvei layers which contain road accessibility data
   const queryLayers = 'tilgjengelighet3';
 
-  const gridSize = 6; // 6x6 grid = 36 requests
-  const imgWidth = 101;
-  const imgHeight = 101;
-  const featureCount = 50;
+  // Strategy: Use WIDTH=3, HEIGHT=3 with I=1, J=1 so the center pixel covers
+  // 1/3 of the cell bbox. Use overlapping bboxes (3x step) so that center pixels
+  // tile the full extent with no gaps.
+  const gridSize = 8; // 8x8 grid = 64 requests
+  const featureCount = 200;
 
   const xMin = extent[0], yMin = extent[1], xMax = extent[2], yMax = extent[3];
   const xStep = (xMax - xMin) / gridSize;
@@ -795,10 +796,14 @@ async function scanForHighscoreData() {
   const requests = [];
   for (let xi = 0; xi < gridSize; xi++) {
     for (let yi = 0; yi < gridSize; yi++) {
-      const cellXMin = xMin + xi * xStep;
-      const cellYMin = yMin + yi * yStep;
-      const cellXMax = cellXMin + xStep;
-      const cellYMax = cellYMin + yStep;
+      // Center of this grid cell
+      const centerX = xMin + (xi + 0.5) * xStep;
+      const centerY = yMin + (yi + 0.5) * yStep;
+      // Bbox = 3x step so center pixel (1/3 of bbox) = exactly 1 step
+      const cellXMin = centerX - xStep * 1.5;
+      const cellYMin = centerY - yStep * 1.5;
+      const cellXMax = centerX + xStep * 1.5;
+      const cellYMax = centerY + yStep * 1.5;
       const bbox = `${cellXMin},${cellYMin},${cellXMax},${cellYMax}`;
 
       const url = `${WMS_URL}?` + new URLSearchParams({
@@ -813,10 +818,10 @@ async function scanForHighscoreData() {
         LAYERS: queryLayers,
         language: 'Norwegian',
         FEATURE_COUNT: String(featureCount),
-        I: '50',
-        J: '50',
-        WIDTH: String(imgWidth),
-        HEIGHT: String(imgHeight),
+        I: '1',
+        J: '1',
+        WIDTH: '3',
+        HEIGHT: '3',
         CRS: 'EPSG:3857',
         BBOX: bbox,
       }).toString();
@@ -825,8 +830,8 @@ async function scanForHighscoreData() {
     }
   }
 
-  // Execute requests in parallel batches of 6
-  const batchSize = 6;
+  // Execute requests in parallel batches of 8
+  const batchSize = 8;
   for (let i = 0; i < requests.length; i += batchSize) {
     const batch = requests.slice(i, i + batchSize);
     const responses = await Promise.allSettled(batch.map(url => fetch(url).then(r => r.text())));
