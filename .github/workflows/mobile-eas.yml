@@ -1,6 +1,12 @@
-name: Mobile EAS Build and Submit
+name: Mobile EAS Build
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - mobile/**
+      - packages/shared/**
+      - .github/workflows/mobile-eas.yml
   workflow_dispatch:
     inputs:
       platform:
@@ -21,15 +27,13 @@ on:
           - development
           - preview
           - production
-      submit:
-        description: Submit latest build to stores
-        required: true
-        default: false
-        type: boolean
 
 jobs:
   eas:
     runs-on: ubuntu-latest
+    env:
+      EAS_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'all' }}
+      EAS_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -52,10 +56,5 @@ jobs:
         working-directory: mobile
 
       - name: Build mobile binaries
-        run: eas build --platform ${{ inputs.platform }} --profile ${{ inputs.profile }} --non-interactive --no-wait
-        working-directory: mobile
-
-      - name: Submit latest build to stores
-        if: ${{ inputs.submit }}
-        run: eas submit --platform ${{ inputs.platform }} --latest --profile production --non-interactive
+        run: eas build --platform "$EAS_PLATFORM" --profile "$EAS_PROFILE" --non-interactive --no-wait
         working-directory: mobile
