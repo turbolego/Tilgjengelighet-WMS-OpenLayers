@@ -19,14 +19,18 @@ import Point from 'ol/geom/Point';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Style, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
+import {
+  esc,
+  filterFullyAccessible,
+  parseCapabilities,
+  parseFeatureInfoText,
+  parseGMLFeatureInfo,
+} from './map-utils';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const WMS_URL          = 'https://wms.geonorge.no/skwms1/wms.tilgjengelighet3';
 const CAPABILITIES_URL = `${WMS_URL}?request=GetCapabilities&service=WMS&language=Norwegian`;
-
-// Base URL for feature photos served by Geonorge
-const PHOTO_BASE_URL = 'https://wfs.geonorge.no/skwfs/wfs.tilgjengelighet3?request=GetMap&service=WFS&tilgjengelighet=bilder&bildefil=';
 
 const NORWAY_CENTER = fromLonLat([15.5, 65.0]);
 const NORWAY_ZOOM   = 5;
@@ -248,64 +252,6 @@ async function fetchCapabilitiesXML() {
   }
 }
 
-function tagText(str, tag) {
-  const alts = tag === 'Name' ? '(?:Name|n)' : tag;
-  const m = str.match(new RegExp(`<${alts}[^>]*>([\\s\\S]*?)<\\/${alts}>`));
-  return m ? m[1].trim() : '';
-}
-
-function decodeEntities(str) {
-  return str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
-}
-
-function extractDirectLayers(xml) {
-  const results = [];
-  let i = 0;
-  while (i < xml.length) {
-    const start = xml.indexOf('<Layer', i);
-    if (start === -1) break;
-    let depth = 1, j = start + 6;
-    while (j < xml.length && depth > 0) {
-      const no = xml.indexOf('<Layer', j), nc = xml.indexOf('</Layer>', j);
-      if (nc === -1) { j = xml.length; break; }
-      if (no !== -1 && no < nc) { depth++; j = no + 6; }
-      else { depth--; j = nc + 8; }
-    }
-    const block = xml.slice(start, j);
-    const firstNested = block.indexOf('<Layer', 6);
-    const header = firstNested > -1 ? block.slice(0, firstNested) : block;
-    const name  = tagText(header, 'Name');
-    const title = tagText(header, 'Title') || name;
-    let legendUrl = '';
-    const styleBlock = header.match(/<Style>([\s\S]*?)<\/Style>/);
-    if (styleBlock) {
-      const hrefMatch = styleBlock[1].match(/xlink:href="([^"]+)"/);
-      if (hrefMatch) legendUrl = decodeEntities(hrefMatch[1]);
-    }
-    const innerStart = block.indexOf('>') + 1;
-    const innerEnd   = block.lastIndexOf('</Layer>');
-    const innerXml   = innerStart < innerEnd ? block.slice(innerStart, innerEnd) : '';
-    if (name) results.push({ name, title, legendUrl, innerXml });
-    i = j;
-  }
-  return results;
-}
-
-function buildLayerData(xml) {
-  return extractDirectLayers(xml).map(l => ({
-    name: l.name, title: l.title, legendUrl: l.legendUrl,
-    children: buildLayerData(l.innerXml),
-  }));
-}
-
-function parseCapabilities(xml) {
-  const capMatch = xml.match(/<Capability[\s\S]*?>([\s\S]*)<\/Capability>/);
-  if (!capMatch) return [];
-  const rootLayers = extractDirectLayers(capMatch[1]);
-  if (!rootLayers.length) return [];
-  return buildLayerData(rootLayers[0].innerXml);
-}
-
 // ── OL sublayer factory ───────────────────────────────────────────────────────
 
 function createSubLayer(layerName) {
@@ -447,64 +393,6 @@ async function doGetFeatureInfo(coordinate) {
   }
 }
 
-// ── Parse feature-info text into structured feature blocks ────────────────────
-
-/**
- * Parses the plain-text GetFeatureInfo response into an array of feature
- * objects, each with a layerName, featureId, properties map, and imageFiles.
- *
- * Response format (per Geonorge tilgjengelighet WMS):
- *   Layer 'layerName'
- *   Feature N:
- *   key = value
- *   …
- */
-function parseFeatureInfoText(text) {
-  const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
-  const features = [];
-  let current = null;
-
-  for (const line of lines) {
-    if (line.startsWith('GetFeatureInfo')) continue;
-
-    // "Layer 'foo'"
-    const layerMatch = line.match(/^Layer\s+'?([^']+)'?$/i);
-    if (layerMatch) {
-      current = { layerName: layerMatch[1], featureId: '', props: new Map(), images: [] };
-      features.push(current);
-      continue;
-    }
-
-    // "Feature N:"
-    const featureMatch = line.match(/^Feature\s+(\S+):?\s*$/i);
-    if (featureMatch) {
-      if (current && current.featureId) {
-        // New feature within same layer — clone into a new entry
-        current = { layerName: current.layerName, featureId: featureMatch[1], props: new Map(), images: [] };
-        features.push(current);
-      } else if (current) {
-        current.featureId = featureMatch[1];
-      }
-      continue;
-    }
-
-    // "key = value"
-    const eqIdx = line.indexOf('=');
-    if (eqIdx > -1 && current) {
-      const k = line.slice(0, eqIdx).trim();
-      const v = line.slice(eqIdx + 1).trim().replace(/^'|'$/g, ''); // strip surrounding quotes
-      current.props.set(k, v);
-
-      // Collect bildefil1/2/3
-      if (/^bildefil[123]$/i.test(k) && v) {
-        current.images.push(v);
-      }
-    }
-  }
-
-  return features;
-}
-
 // ── Render popup ──────────────────────────────────────────────────────────────
 
 function renderPopup(text, coord) {
@@ -569,10 +457,6 @@ function renderPopup(text, coord) {
   }
 
   elPopupContent.innerHTML = html;
-}
-
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Place search ──────────────────────────────────────────────────────────────
@@ -672,35 +556,12 @@ elBtnGPS.addEventListener('click', () => {
 
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      const coords = fromLonLat([pos.coords.longitude, pos.coords.latitude]);
-      if (!gpsLayer) {
-        const feature = new Feature({ geometry: new Point(coords) });
-        feature.setStyle(new Style({
-          image: new CircleStyle({
-            radius: 7,
-            fill: new Fill({ color: '#e8a020' }),
-            stroke: new Stroke({ color: '#ffffff', width: 2 }),
-          }),
-        }));
-        gpsLayer = new VectorLayer({ source: new VectorSource({ features: [feature] }), zIndex: 20 });
-        map.addLayer(gpsLayer);
-      } else {
-        gpsLayer.getSource().getFeatures()[0].setGeometry(new Point(coords));
-      }
-      map.getView().animate({ center: coords, zoom: 14, duration: 500 });
+      placeGPSDot(pos);
       elBtnGPS.disabled = false;
     },
     (err) => {
       console.error(err);
-      let errorMessage = 'Kunne ikke hente posisjon.';
-      if (err.code === 1) {
-        errorMessage = 'Tilgang til posisjon ble nektet. Vennligst aktiver posisjonstjenester.';
-      } else if (err.code === 2) {
-        errorMessage = 'Posisjonsoppdatering er utilgjengelig. Prøv igjen senere.';
-      } else if (err.code === 3) {
-        errorMessage = 'Tidsavbrudd ved henting av posisjon. Prøv igjen eller angi posisjon manuelt.';
-      }
-      alert(errorMessage);
+      showToast(gpsErrorMessage(err.code));
       elBtnGPS.disabled = false;
     },
     { enableHighAccuracy: true, timeout: 20000 } // Increased timeout to 20 seconds
@@ -728,47 +589,6 @@ elHighscoreModal.addEventListener('click', (e) => {
 
 // ── Highscore data scanning ───────────────────────────────────────────────────
 
-/**
- * Parses GML GetFeatureInfo response into feature objects with real coordinates.
- */
-function parseGMLFeatureInfo(gmlText) {
-  const features = [];
-  // Match each feature block (pattern: <*_feature>...</*_feature>)
-  const featureBlocks = gmlText.matchAll(/<(\w+_feature)>([\s\S]*?)<\/\1>/g);
-
-  for (const [, , block] of featureBlocks) {
-    const props = new Map();
-    const images = [];
-
-    // Extract bounding box coordinates
-    const boxMatch = block.match(/<gml:coordinates>([\d.,\s]+)<\/gml:coordinates>/);
-    let centerX = 0, centerY = 0;
-    if (boxMatch) {
-      const coords = boxMatch[1].trim().split(/\s+/);
-      if (coords.length === 2) {
-        const [x1, y1] = coords[0].split(',').map(Number);
-        const [x2, y2] = coords[1].split(',').map(Number);
-        centerX = (x1 + x2) / 2;
-        centerY = (y1 + y2) / 2;
-      }
-    }
-
-    // Extract all property elements (simple text content tags)
-    const propMatches = block.matchAll(/<(?!gml:)(\w+)>([^<]*)<\/\1>/g);
-    for (const [, key, value] of propMatches) {
-      const v = value.trim();
-      props.set(key, v);
-      if (/^bildefil[123]$/i.test(key) && v) images.push(v);
-    }
-
-    const objid = props.get('objid') || props.get('lokalid') || '';
-    if (objid) {
-      features.push({ layerName: '', featureId: objid, props, images, centerX, centerY });
-    }
-  }
-
-  return features;
-}
 
 /**
  * Scans the current map view using a grid of GetFeatureInfo requests
@@ -849,20 +669,6 @@ async function scanForHighscoreData() {
   }
 
   return [...allFeatures.values()];
-}
-
-/**
- * Filters features to only those that are fully accessible on all 4 types.
- */
-function filterFullyAccessible(features) {
-  return features.filter(f => {
-    const r1 = f.props.get('tilgjengvurderingrulleman');
-    const r2 = f.props.get('tilgjengvurderingrulleauto');
-    const r3 = f.props.get('tilgjengvurderingelrullestol');
-    const r4 = f.props.get('tilgjengvurderingsyn');
-    return r1 === 'Tilgjengelig' && r2 === 'Tilgjengelig' &&
-           r3 === 'Tilgjengelig' && r4 === 'Tilgjengelig';
-  });
 }
 
 /**

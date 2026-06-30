@@ -1,0 +1,61 @@
+name: Mobile EAS Build and Submit
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Target platform
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+      profile:
+        description: EAS build profile
+        required: true
+        default: production
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+      submit:
+        description: Submit latest build to stores
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  eas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install mobile dependencies
+        run: npm ci
+        working-directory: mobile
+
+      - name: Build mobile binaries
+        run: eas build --platform ${{ inputs.platform }} --profile ${{ inputs.profile }} --non-interactive --no-wait
+        working-directory: mobile
+
+      - name: Submit latest build to stores
+        if: ${{ inputs.submit }}
+        run: eas submit --platform ${{ inputs.platform }} --latest --profile production --non-interactive
+        working-directory: mobile

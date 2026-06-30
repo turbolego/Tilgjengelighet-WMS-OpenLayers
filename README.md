@@ -31,6 +31,18 @@ npm run build
 # Output is in ./dist/
 ```
 
+## Tests
+
+```bash
+npm test
+```
+
+Run all quality gates together:
+
+```bash
+npm run check
+```
+
 ---
 
 ## Deploy to GitHub Pages
@@ -56,6 +68,54 @@ If your repo name is not the root of your GitHub Pages domain, set the `base` in
 ```js
 base: '/geonorge-wms-viewer/'   // replace with your repo name
 ```
+
+---
+
+## Mobile app (Expo)
+
+This repository now has both targets:
+
+- Web app in project root (Vite + GitHub Pages)
+- Mobile app in `mobile/` (Expo for Android and iOS)
+
+Run mobile app:
+
+```bash
+cd mobile
+npm install
+npm run start
+```
+
+Platform shortcuts:
+
+```bash
+npm --prefix mobile run android
+npm --prefix mobile run ios
+npm --prefix mobile run web
+```
+
+Detailed migration plan and architecture notes:
+
+- See `docs/expo-mobile-plan.md`
+
+### Mobile release automation (EAS)
+
+This repo includes:
+
+- `mobile/eas.json` for build/submit profiles
+- `.github/workflows/mobile-eas.yml` for manual EAS build and optional submit
+
+Required repository secrets for the workflow:
+
+- `EXPO_TOKEN`
+- iOS submit credentials (App Store Connect) configured in EAS
+- Android submit credentials (Google Play service account) configured in EAS
+
+Run the workflow from GitHub Actions with inputs:
+
+- `platform`: `ios`, `android`, or `all`
+- `profile`: `development`, `preview`, or `production`
+- `submit`: `true` to submit latest build to store channels
 
 ---
 
@@ -105,7 +165,8 @@ base: '/geonorge-wms-viewer/'   // replace with your repo name
 
 | Library | Purpose |
 |---|---|
-| [OpenLayers 9](https://openlayers.org/) | Map rendering, WMS, projections |
-| [Vite 5](https://vitejs.dev/) | Bundler, dev server |
+| [OpenLayers 10](https://openlayers.org/) | Map rendering, WMS, projections |
+| [Vite 8](https://vitejs.dev/) | Bundler, dev server |
+| [Vitest](https://vitest.dev/) | Unit testing |
 | Vanilla JS / CSS | UI, accessibility |
 | GitHub Actions | CI/CD deployment |
