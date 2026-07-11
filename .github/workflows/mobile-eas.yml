@@ -50,6 +50,12 @@ jobs:
       - name: Install mobile dependencies
         run: npm --prefix mobile ci
 
+      - name: Initialize EAS project
+        run: eas init --force --non-interactive
+        working-directory: mobile
+        env:
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID || '' }}
+
       - name: Build mobile binaries
         run: eas build --platform "$EAS_PLATFORM" --profile "$EAS_PROFILE" --non-interactive --no-wait
         working-directory: mobile
@@ -67,6 +73,8 @@ jobs:
           echo "2. Generate a token: https://expo.dev/settings/access-tokens"
           echo "3. Add it as a GitHub secret named EXPO_TOKEN"
           echo "   Settings → Secrets and variables → Actions → New repository secret"
+          echo "4. Run 'eas init' locally once to get the project ID, then add it as EXPO_PROJECT_ID secret"
+          echo "   (optional but avoids needing eas init in every CI run)"
           echo ""
           echo "In the meantime, the 'Mobile Build' workflow (mobile-build.yml)"
           echo "uses Continuous Native Generation (CNG) to build locally in CI"
