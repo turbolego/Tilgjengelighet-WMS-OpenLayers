@@ -8,7 +8,8 @@
     "scheme": "tilgjengelighetwms",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "no.geonorge.tilgjengelighet"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,6 +18,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "package": "no.geonorge.tilgjengelighet",
       "predictiveBackGestureEnabled": false
     },
     "web": {

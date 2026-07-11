@@ -1,12 +1,6 @@
-name: Mobile EAS Build
+name: Mobile EAS Build (Requires EXPO_TOKEN)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - mobile/**
-      - packages/shared/**
-      - .github/workflows/mobile-eas.yml
   workflow_dispatch:
     inputs:
       platform:
@@ -31,9 +25,11 @@ on:
 jobs:
   eas:
     runs-on: ubuntu-latest
+    # Skip if EXPO_TOKEN is not configured
+    if: ${{ secrets.EXPO_TOKEN != '' }}
     env:
-      EAS_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'all' }}
-      EAS_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}
+      EAS_PLATFORM: ${{ inputs.platform }}
+      EAS_PROFILE: ${{ inputs.profile }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -52,9 +48,34 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install mobile dependencies
-        run: npm ci
+        run: npm --prefix mobile ci
+
+      - name: Initialize EAS project
+        run: eas init --force --non-interactive
         working-directory: mobile
+        env:
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID || '' }}
 
       - name: Build mobile binaries
         run: eas build --platform "$EAS_PLATFORM" --profile "$EAS_PROFILE" --non-interactive --no-wait
         working-directory: mobile
+
+  no-token:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.EXPO_TOKEN == '' }}
+    steps:
+      - name: Missing EXPO_TOKEN
+        run: |
+          echo "::warning::Skipping EAS build — EXPO_TOKEN secret is not configured in this repository."
+          echo ""
+          echo "To enable cloud builds with EAS:"
+          echo "1. Create an Expo account at https://expo.dev/signup"
+          echo "2. Generate a token: https://expo.dev/settings/access-tokens"
+          echo "3. Add it as a GitHub secret named EXPO_TOKEN"
+          echo "   Settings → Secrets and variables → Actions → New repository secret"
+          echo "4. Run 'eas init' locally once to get the project ID, then add it as EXPO_PROJECT_ID secret"
+          echo "   (optional but avoids needing eas init in every CI run)"
+          echo ""
+          echo "In the meantime, the 'Mobile Build' workflow (mobile-build.yml)"
+          echo "uses Continuous Native Generation (CNG) to build locally in CI"
+          echo "without requiring any Expo account or tokens."

@@ -1,0 +1,109 @@
+name: Mobile Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - mobile/**
+      - packages/shared/**
+      - .github/workflows/mobile-build.yml
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Target platform
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+
+jobs:
+  android:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'android' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Install mobile dependencies
+        run: npm --prefix mobile ci
+
+      - name: Prebuild native Android project
+        run: npx expo prebuild --platform android --clean
+        working-directory: mobile
+
+      - name: Build Android APK
+        run: cd mobile/android && ./gradlew assembleRelease
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT || '/usr/local/lib/android/sdk' }}
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: android-apk
+          path: mobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+  ios:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.platform == 'ios' }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: npm --prefix mobile ci
+
+      - name: Prebuild native iOS project
+        run: npx expo prebuild --platform ios --clean
+        working-directory: mobile
+
+      - name: Install CocoaPods
+        run: cd mobile/ios && pod install
+
+      - name: Build iOS app (simulator)
+        run: |
+          cd mobile/ios
+          xcodebuild \
+            -workspace Tilgjengelighetwms.xcworkspace \
+            -scheme Tilgjengelighetwms \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Upload iOS .app artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: ios-app
+          path: mobile/ios/build/*-iphonesimulator/*.app
+          retention-days: 30
