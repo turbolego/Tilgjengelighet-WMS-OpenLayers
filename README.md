@@ -98,24 +98,23 @@ Detailed migration plan and architecture notes:
 
 - See `docs/expo-mobile-plan.md`
 
-### Mobile release automation (EAS)
+### Mobile apps — Releases and downloads
 
-This repo includes:
+Pre-built mobile apps are published as **GitHub Releases**. Testers can download the latest build directly from the [Releases page](../../releases).
 
-- `mobile/eas.json` for build/submit profiles
-- `.github/workflows/mobile-eas.yml` for manual EAS build and optional submit
+**Release workflow** (`.github/workflows/release.yml`):
+- **Android**: Builds automatically on every push to `main` (no token required). Produces **APK** (direct install) and **AAB** (Play Store bundle).
+- **iOS**: Triggered manually via `workflow_dispatch` (requires macOS runner). Produces an unsigned `.app` bundle for simulator testing. Signed IPA for device distribution requires an Apple Developer account configured with EAS (see below).
 
-Required repository secrets for the workflow:
+Each release includes:
+- The built APK/AAB (Android) and/or .app (iOS)
+- Auto-generated release notes with install instructions
+- Version tag derived from `mobile/app.json`
 
-- `EXPO_TOKEN`
-- iOS submit credentials (App Store Connect) configured in EAS
-- Android submit credentials (Google Play service account) configured in EAS
-
-Run the workflow from GitHub Actions with inputs:
-
-- `platform`: `ios`, `android`, or `all`
-- `profile`: `development`, `preview`, or `production`
-- `submit`: `true` to submit latest build to store channels
+**Cloud builds via EAS** (`.github/workflows/mobile-eas.yml`):
+- Requires `EXPO_TOKEN` repository secret
+- Supports signed iOS IPA and Play Store-ready AAB
+- Can also submit directly to App Store / Google Play
 
 ---
 

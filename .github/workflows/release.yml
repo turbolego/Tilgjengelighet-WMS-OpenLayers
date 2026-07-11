@@ -1,0 +1,224 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - mobile/**
+      - packages/shared/**
+      - .github/workflows/release.yml
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Target platform
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - both
+      version:
+        description: Version tag (auto-detected from app.json if left empty)
+        required: false
+        default: ''
+        type: string
+      prerelease:
+        description: Mark as pre-release?
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Build Android ──────────────────────────────────────────────────
+  android:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'android' || inputs.platform == 'both' }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./mobile/app.json').expo.version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install mobile dependencies
+        run: npm --prefix mobile ci
+
+      - name: Prebuild native Android project
+        run: npx expo prebuild --platform android --clean
+        working-directory: mobile
+
+      - name: Build Android AAB (Play Store bundle)
+        run: cd mobile/android && ./gradlew bundleRelease
+
+      - name: Build Android APK (direct install)
+        run: cd mobile/android && ./gradlew assembleRelease
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: android-release
+          path: |
+            mobile/android/app/build/outputs/bundle/release/*.aab
+            mobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 7
+
+  # ── Build iOS ──────────────────────────────────────────────────────
+  ios:
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.platform == 'ios' || inputs.platform == 'both') }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: npm --prefix mobile ci
+
+      - name: Prebuild native iOS project
+        run: npx expo prebuild --platform ios --clean
+        working-directory: mobile
+
+      - name: Install CocoaPods
+        run: cd mobile/ios && pod install
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./mobile/app.json').expo.version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build iOS archive (unsigned, for simulator)
+        run: |
+          cd mobile/ios
+          xcodebuild \
+            -workspace Tilgjengelighetwms.xcworkspace \
+            -scheme Tilgjengelighetwms \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: ios-release
+          path: mobile/ios/build/*-iphonesimulator/*.app
+          retention-days: 7
+
+  # ── Create GitHub Release ──────────────────────────────────────────
+  release:
+    needs: [android, ios]
+    if: ${{ !cancelled() && (needs.android.result == 'success' || needs.android.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Determine version tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            TAG="v${{ inputs.version }}"
+          else
+            VERSION=$(node -p "require('./mobile/app.json').expo.version")
+            TAG="v${VERSION}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Version tag: $TAG"
+
+      - name: Download Android artifacts
+        if: ${{ needs.android.result == 'success' }}
+        uses: actions/download-artifact@v5
+        with:
+          name: android-release
+          path: artifacts/android
+
+      - name: Download iOS artifacts
+        if: ${{ needs.ios.result == 'success' }}
+        uses: actions/download-artifact@v5
+        with:
+          name: ios-release
+          path: artifacts/ios
+
+      - name: List artifacts
+        run: |
+          echo "=== Android ==="
+          find artifacts/android -type f -ls 2>/dev/null || echo "(none)"
+          echo "=== iOS ==="
+          find artifacts/ios -type f -ls 2>/dev/null || echo "(none)"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          {
+            echo "## 📱 Geonorge Tilgjengelighet — v${{ steps.tag.outputs.tag }}"
+            echo ""
+            echo "| Platform | File | Description |"
+            echo "|----------|------|-------------|"
+            find artifacts -type f | while read f; do
+              fname=$(basename "$f")
+              platform=$(echo "$f" | grep -q android && echo "Android" || echo "iOS")
+              ext="${fname##*.}"
+              desc=""
+              case "$ext" in
+                aab) desc="Play Store bundle" ;;
+                apk) desc="Direct install" ;;
+                *) desc="App" ;;
+              esac
+              echo "| $platform | $fname | $desc |"
+            done
+            echo ""
+            echo "### Installation"
+            echo "- **Android**: Download the APK and install directly, or use the AAB for Play Store"
+            echo "- **iOS**: Requires a Mac with Xcode to install on simulator or device"
+            echo ""
+            echo "> Built from commit \`$(git rev-parse --short HEAD)\`"
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          body_path: release-notes.md
+          files: artifacts/**/*
+          prerelease: ${{ inputs.prerelease || github.event_name == 'push' }}
+          generate_release_notes: false
+          make_latest: true
