@@ -50,6 +50,8 @@ jobs:
       - name: Prebuild native Android project
         run: npx expo prebuild --platform android --clean
         working-directory: mobile
+        env:
+          EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY }}
 
       - name: Build Android APK
         run: cd mobile/android && ./gradlew assembleRelease
