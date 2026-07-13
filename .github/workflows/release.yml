@@ -81,7 +81,7 @@ jobs:
         run: cd mobile/android && ./gradlew assembleRelease
 
       - name: Upload Android artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: android-release
           path: |
@@ -135,7 +135,7 @@ jobs:
             build
 
       - name: Upload iOS artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ios-release
           path: mobile/ios/build/*-iphonesimulator/*.app
@@ -164,14 +164,14 @@ jobs:
 
       - name: Download Android artifacts
         if: ${{ needs.android.result == 'success' }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: android-release
           path: artifacts/android
 
       - name: Download iOS artifacts
         if: ${{ needs.ios.result == 'success' }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: ios-release
           path: artifacts/ios
