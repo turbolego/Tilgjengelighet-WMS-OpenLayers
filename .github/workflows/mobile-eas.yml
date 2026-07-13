@@ -6,12 +6,12 @@ on:
       platform:
         description: Target platform
         required: true
-        default: all
+        default: android
         type: choice
         options:
-          - all
           - android
           - ios
+          - all
       profile:
         description: EAS build profile
         required: true
