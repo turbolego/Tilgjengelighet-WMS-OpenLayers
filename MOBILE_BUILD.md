@@ -84,31 +84,26 @@ Build profiles for EAS cloud builds:
 
 ## Troubleshooting
 
-### App crashes on startup on Android
-If the standalone APK crashes immediately with "Something went wrong":
-- This is caused by a missing **Google Maps API key**
-- `react-native-maps` on Android requires a Google Maps API key in standalone builds (it works in Expo Go without one)
-- **Fix:** Set the `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` environment variable before building
+### MapLibre vs Google Maps
 
-**To generate a key:**
-1. Go to [Google Cloud Credentials](https://console.cloud.google.com/apis/credentials)
-2. Create a project and enable **Maps SDK for Android**
-3. Create an API key, restrict to Android apps with package `no.geonorge.tilgjengelighet`
-4. Add the app's SHA-1 certificate fingerprint (debug keystore for dev, Play Store key for production)
-5. Set the key as a GitHub Actions secret: `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`
-6. For local builds, copy `mobile/.env.example` to `mobile/.env` and fill in the key
+This app uses **@maplibre/maplibre-react-native** instead of react-native-maps with Google Maps. This means:
+- ✅ **No Google Maps API key required** — MapLibre is free and open source
+- ✅ **No API key configuration needed** — works out of the box
+- ✅ Uses OpenFreeMap base tiles (free, no registration)
+- ✅ WMS overlay from Geonorge's public service
+- ❌ Not supported in Expo Go (uses development builds only)
+
+### Android Build Issues
+- Ensure Android SDK is installed (GitHub Action `setup-android` handles this)
+- JAVA_HOME must be set (GitHub Action `setup-java` handles this)
+- Gradle wrapper permissions: `chmod +x android/gradlew`
+- The first build may take 10+ minutes as Gradle downloads MapLibre native dependencies
 
 ### Missing EXPO_TOKEN
 If you see `An Expo user account is required to proceed` in logs:
 - The EAS workflow is correctly skipping itself when token is missing
 - Use the Mobile Build workflow (CNG approach) instead
 - To enable EAS: Add EXPO_TOKEN secret as described above
-
-### Android Build Issues
-- Ensure Android SDK is installed (GitHub Action `setup-android` handles this)
-- JAVA_HOME must be set (GitHub Action `setup-java` handles this)
-- Gradle wrapper permissions: `chmod +x android/gradlew`
-- Google Maps API key must be set via `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` — see "App crashes on startup" above
 
 ### iOS Build Issues
 - Requires macOS runner (GitHub Actions provides macOS-latest)
