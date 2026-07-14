@@ -1,7 +1,6 @@
 import Constants from 'expo-constants';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
-import MapView, { Camera } from '@maplibre/maplibre-react-native';
-import { RasterSource, RasterLayer } from '@maplibre/maplibre-react-native';
+import { Map, Camera, RasterSource, Layer } from '@maplibre/maplibre-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -39,19 +38,19 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.mapContainer}>
-            <MapView style={styles.map} styleURL={BASE_MAP_STYLE}>
+            <Map style={styles.map} mapStyle={BASE_MAP_STYLE}>
               <Camera
-                centerCoordinate={INITIAL_CENTER}
-                zoomLevel={INITIAL_ZOOM}
+                center={INITIAL_CENTER}
+                zoom={INITIAL_ZOOM}
               />
               <RasterSource
                 id="geonorge-wms"
-                tileUrlTemplates={[WMS_TILE_URL]}
+                tiles={[WMS_TILE_URL]}
                 tileSize={256}
               >
-                <RasterLayer id="geonorge-wms-layer" />
+                <Layer id="geonorge-wms-layer" type="raster" />
               </RasterSource>
-            </MapView>
+            </Map>
           </View>
         )}
       </SafeAreaView>
