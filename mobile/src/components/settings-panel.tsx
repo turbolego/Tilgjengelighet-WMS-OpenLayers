@@ -81,10 +81,9 @@ export function SettingsPanel({
       statusBarTranslucent
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <View />
-      </Pressable>
-      <SafeAreaView style={styles.safeArea}>
-      <View style={styles.panel}>
+        <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
+          <Pressable style={styles.panelTouchGuard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.panel}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Innstillinger</Text>
@@ -213,8 +212,10 @@ export function SettingsPanel({
             Kartverket / Geonorge · © Statens kartverk
           </Text>
         </View>
-      </View>
-      </SafeAreaView>
+          </View>
+          </Pressable>
+        </SafeAreaView>
+      </Pressable>
     </Modal>
   );
 }
@@ -351,6 +352,11 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 8,
     paddingBottom: 8,
     paddingHorizontal: 8,
+  },
+  panelTouchGuard: {
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '100%',
   },
   panel: {
     width: '100%',
