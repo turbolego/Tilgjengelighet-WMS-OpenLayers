@@ -18,7 +18,6 @@ import {
   HIGHSCORE_GRID_SIZE,
   HIGHSCORE_FEATURE_COUNT,
   HIGHSCORE_BATCH_SIZE,
-  type LayerInfo,
 } from '@/constants/map-config';
 
 export { esc, parseCapabilities, parseFeatureInfoText, parseGMLFeatureInfo, filterFullyAccessible };

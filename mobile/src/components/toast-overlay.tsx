@@ -11,8 +11,8 @@ export function showToast(message: string, type: 'error' | 'info' = 'error') {
 export function ToastOverlay() {
   const [message, setMessage] = useState('');
   const [type, setType] = useState<'error' | 'info'>('info');
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(20)).current;
+  const [opacity] = useState(() => new Animated.Value(0));
+  const [translateY] = useState(() => new Animated.Value(20));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {

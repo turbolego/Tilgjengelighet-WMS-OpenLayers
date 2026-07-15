@@ -45,12 +45,17 @@ export function SettingsPanel({
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
   const [searchError, setSearchError] = useState('');
 
-  useEffect(() => {
-    if (searchQuery.trim().length < 3) {
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text);
+    if (text.trim().length < 3) {
       setSearchResults([]);
       setSearchError('');
-      return;
     }
+  };
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 3) return;
     const timer = setTimeout(async () => {
       try {
         const results = await onSearchPlace(searchQuery.trim());
@@ -103,7 +108,7 @@ export function SettingsPanel({
               placeholder="Skriv inn stedsnavn…"
               placeholderTextColor={MapTheme.mist}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={handleSearchChange}
               autoComplete="off"
               autoCorrect={false}
             />
