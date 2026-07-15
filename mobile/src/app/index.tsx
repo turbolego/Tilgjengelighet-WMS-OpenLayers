@@ -1,92 +1,391 @@
-import Constants from 'expo-constants';
-import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { Map, Camera, RasterSource, Layer } from '@maplibre/maplibre-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Platform,
+  StyleSheet,
+  View,
+} from 'react-native';
+import { Map, Camera, RasterSource, Layer, type MapRef } from '@maplibre/maplibre-react-native';
+import * as Location from 'expo-location';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Spacing } from '@/constants/theme';
+import { ActionBar } from '@/components/action-bar';
+import { StatusBar as MapStatusBar } from '@/components/status-bar';
+import { SettingsPanel } from '@/components/settings-panel';
+import { FeaturePopup } from '@/components/feature-popup';
+import { HighscoreModal, type HighscoreFeature } from '@/components/highscore-modal';
+import { ToastOverlay, showToast } from '@/components/toast-overlay';
+import {
+  WMS_TILE_URL,
+  BASE_MAP_STYLE,
+  NORWAY_CENTER,
+  NORWAY_ZOOM,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  type LayerInfo,
+  type FeatureInfo,
+} from '@/constants/map-config';
+import {
+  fetchCapabilitiesXML,
+  parseCapabilities,
+  buildFeatureInfoUrl,
+  fetchFeatureInfo,
+  parseFeatureInfoText,
+  scanForHighscoreData,
+  searchPlaces,
+  type PlaceResult,
+} from '@/utils/map-api';
 
-const WEB_APP_URL =
-  (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ??
-  'https://turbolego.github.io/Tilgjengelighet-WMS-OpenLayers/';
-const INITIAL_CENTER: [number, number] = [15.5, 65.0]; // [longitude, latitude]
-const INITIAL_ZOOM = 5;
-const BASE_MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
-const WMS_TILE_URL =
-  'https://wms.geonorge.no/skwms1/wms.tilgjengelighet3?service=WMS&request=GetMap&version=1.1.1&layers=tilgjengelighet3&styles=&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&bbox={bbox-epsg-3857}';
+// Minimal empty style for "no basemap" (avoids empty/null mapStyle)
+const EMPTY_STYLE = {
+  version: 8 as const,
+  sources: {} as Record<string, never>,
+  layers: [] as never[],
+};
 
 export default function HomeScreen() {
   const isWeb = Platform.OS === 'web';
 
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.header}>
-          <ThemedText type="title" style={styles.title}>Geonorge Tilgjengelighet</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Native app shell for Android and iOS using Expo.
-          </ThemedText>
-        </ThemedView>
+  // ── Map refs & state ─────────────────────────────────────────────────────
+  const mapRef = useRef<MapRef>(null);
+  const [zoom, setZoom] = useState(NORWAY_ZOOM);
+  const [center, setCenter] = useState<[number, number]>(NORWAY_CENTER);
 
-        {isWeb ? (
-          <View style={styles.webFallback}>
-            <ThemedText type="body">Open the production map in a new tab:</ThemedText>
-            <Pressable onPress={() => Linking.openURL(WEB_APP_URL)} style={styles.openButton}>
-              <ThemedText type="link">Open map web app</ThemedText>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.mapContainer}>
-            <Map style={styles.map} mapStyle={BASE_MAP_STYLE}>
-              <Camera
-                center={INITIAL_CENTER}
-                zoom={INITIAL_ZOOM}
-              />
-              <RasterSource
-                id="geonorge-wms"
-                tiles={[WMS_TILE_URL]}
-                tileSize={256}
-              >
-                <Layer id="geonorge-wms-layer" type="raster" />
-              </RasterSource>
-            </Map>
-          </View>
-        )}
-      </SafeAreaView>
-    </ThemedView>
+  // ── Layer state ──────────────────────────────────────────────────────────
+  const [layerTree, setLayerTree] = useState<LayerInfo[]>([]);
+  const [layersLoading, setLayersLoading] = useState(true);
+  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
+  const [compositeVisible, setCompositeVisible] = useState(true);
+  const compositeVisibleRef = useRef(true);
+
+  // ── Basemap ──────────────────────────────────────────────────────────────
+  const [basemap, setBasemap] = useState<'osm' | 'topo' | 'none'>('osm');
+  const currentMapStyle =
+    basemap === 'none'
+      ? EMPTY_STYLE
+      : basemap === 'topo'
+        ? 'https://tiles.openfreemap.org/styles/topo'
+        : BASE_MAP_STYLE;
+
+  // ── Modal state ──────────────────────────────────────────────────────────
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [popupVisible, setPopupVisible] = useState(false);
+  const [popupLoading, setPopupLoading] = useState(false);
+  const [popupTitle, setPopupTitle] = useState('Stedsinfo');
+  const [popupFeatures, setPopupFeatures] = useState<FeatureInfo[]>([]);
+  const [highscoreVisible, setHighscoreVisible] = useState(false);
+  const [highscoreLoading, setHighscoreLoading] = useState(false);
+  const [highscoreFeatures, setHighscoreFeatures] = useState<HighscoreFeature[]>([]);
+
+  // ── GPS loading ──────────────────────────────────────────────────────────
+  const [gpsLoading, setGpsLoading] = useState(false);
+
+  // ── Boot: load capabilities ─────────────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const xml = await fetchCapabilitiesXML();
+        const groups = parseCapabilities(xml);
+        if (groups.length === 0) {
+          showToast('Ingen kartlag funnet.', 'error');
+          return;
+        }
+        groups.sort((a: LayerInfo, b: LayerInfo) => a.title.localeCompare(b.title, 'no'));
+        setLayerTree(groups);
+      } catch (err: any) {
+        const msg =
+          err.name === 'AbortError'
+            ? 'Tidsavbrudd ved lasting av kartlag.'
+            : `Kunne ikke laste kartlag: ${err.message}`;
+        showToast(msg, 'error');
+      } finally {
+        setLayersLoading(false);
+      }
+    })();
+  }, []);
+
+  // ── Layer toggling ──────────────────────────────────────────────────────
+  const handleLayerToggle = useCallback((name: string) => {
+    setActiveLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
+  // ── Composite toggle ───────────────────────────────────────────────────
+  const handleCompositeToggle = useCallback(
+    (visible: boolean) => {
+      compositeVisibleRef.current = visible;
+      setCompositeVisible(visible);
+      mapRef.current
+        ?.setSourceVisibility(visible, 'geonorge-wms')
+        .catch(() => {});
+    },
+    [],
+  );
+
+  // ── Zoom helpers ────────────────────────────────────────────────────────
+  const animateTo = useCallback(
+    (target: [number, number], targetZoom: number) => {
+      setCenter(target);
+      setZoom(targetZoom);
+    },
+    [],
+  );
+
+  // ── GetFeatureInfo (tap handler) ────────────────────────────────────────
+  const handleMapPress = useCallback(
+    async (event: any) => {
+      // event is a NativeSyntheticEvent
+      const nativeEvent = event.nativeEvent ?? event;
+      const lngLat = nativeEvent.lngLat as [number, number] | undefined;
+      if (!lngLat || lngLat.length < 2) return;
+
+      setPopupLoading(true);
+      setPopupVisible(true);
+      setPopupTitle('Henter stedsinfo…');
+      setPopupFeatures([]);
+
+      try {
+        const url = buildFeatureInfoUrl(
+          [lngLat[0], lngLat[1]],
+          [...activeLayers],
+          zoom,
+        );
+        const text = await fetchFeatureInfo(url);
+        const features = parseFeatureInfoText(text);
+
+        const hasData = features.some((f) => f.props.size > 0);
+        if (!hasData) {
+          setPopupVisible(false);
+          return;
+        }
+
+        // Title: coordinates
+        const lat = lngLat[1].toFixed(5);
+        const lon = lngLat[0].toFixed(5);
+        setPopupTitle(`${lat}° N, ${lon}° Ø`);
+
+        // Deduplicate by layerName + featureId
+        const seen = new Set<string>();
+        const unique = features.filter((f) => {
+          const key = `${f.layerName}::${f.featureId}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        setPopupFeatures(unique);
+      } catch (err: any) {
+        showToast(`Feil ved henting av stedsinfo: ${err.message}`, 'error');
+        setPopupFeatures([]);
+        setPopupTitle('Stedsinfo');
+      } finally {
+        setPopupLoading(false);
+      }
+    },
+    [activeLayers, zoom],
+  );
+
+  // ── GPS ─────────────────────────────────────────────────────────────────
+  const handleGPS = useCallback(async () => {
+    if (isWeb) {
+      showToast('GPS fungerer kun på mobil.', 'info');
+      return;
+    }
+
+    setGpsLoading(true);
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showToast(
+          'Posisjonstilgang nektet – sjekk systeminnstillinger.',
+          'error',
+        );
+        return;
+      }
+
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      animateTo([pos.coords.longitude, pos.coords.latitude], 14);
+    } catch (err: any) {
+      const msg =
+        err.code === 2
+          ? 'Posisjon utilgjengelig. Sjekk at posisjonstjenester er aktivert.'
+          : err.code === 3
+            ? 'Tidsavbrudd ved henting av posisjon.'
+            : `Kunne ikke hente posisjon: ${err.message}`;
+      showToast(msg, 'error');
+    } finally {
+      setGpsLoading(false);
+    }
+  }, [isWeb, animateTo]);
+
+  // ── Highscore scanning ──────────────────────────────────────────────────
+  const computeExtent = useCallback(() => {
+    const lngPerPixel = 360 / (256 * Math.pow(2, zoom));
+    const latPerPixel = 180 / (256 * Math.pow(2, zoom));
+    const screenW = 360;
+    const screenH = 600;
+    const halfW = (screenW / 2) * lngPerPixel;
+    const halfH = (screenH / 2) * latPerPixel;
+    return {
+      xMin: center[0] - halfW,
+      yMin: center[1] - halfH,
+      xMax: center[0] + halfW,
+      yMax: center[1] + halfH,
+    };
+  }, [center, zoom]);
+
+  const handleHighscore = useCallback(async () => {
+    setHighscoreVisible(true);
+    setHighscoreLoading(true);
+    setHighscoreFeatures([]);
+
+    try {
+      const extent = computeExtent();
+      const features = await scanForHighscoreData(extent);
+      setHighscoreFeatures(features as unknown as HighscoreFeature[]);
+    } catch (err: any) {
+      showToast(`Feil ved skanning: ${err.message}`, 'error');
+    } finally {
+      setHighscoreLoading(false);
+    }
+  }, [computeExtent]);
+
+  const handleZoomToRoad = useCallback(
+    (x: number, y: number) => {
+      setHighscoreVisible(false);
+      // Convert EPSG:3857 to lon/lat
+      const lon = (x / 20037508.34) * 180;
+      const lat =
+        (Math.atan(Math.exp((y / 20037508.34) * Math.PI)) * 360) / Math.PI - 90;
+      animateTo([lon, lat], 16);
+    },
+    [animateTo],
+  );
+
+  // ── Place search handler ────────────────────────────────────────────────
+  const handleSearchPlace = useCallback(
+    async (query: string): Promise<PlaceResult[]> => {
+      return searchPlaces(query);
+    },
+    [],
+  );
+
+  const handleSelectPlace = useCallback(
+    (place: PlaceResult) => {
+      animateTo([place.lon, place.lat], 12);
+    },
+    [animateTo],
+  );
+
+  // ── Web fallback ────────────────────────────────────────────────────────
+  if (isWeb) {
+    return <View style={styles.webFallback}><ToastOverlay /></View>;
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Map fills the screen */}
+      <View style={styles.mapWrapper}>
+        <Map
+          ref={mapRef}
+          style={styles.map}
+          mapStyle={currentMapStyle}
+          onPress={handleMapPress}
+          attribution={false}
+          logo={false}
+        >
+          <Camera
+            center={center}
+            zoom={zoom}
+            minZoom={MIN_ZOOM}
+            maxZoom={MAX_ZOOM}
+          />
+
+          {/* WMS raster overlay */}
+          <RasterSource
+            id="geonorge-wms"
+            tiles={[WMS_TILE_URL]}
+            tileSize={256}
+          >
+            <Layer id="geonorge-wms-layer" type="raster" />
+          </RasterSource>
+        </Map>
+      </View>
+
+      {/* HUD overlays (visible when modals are closed) */}
+      {!settingsVisible && !popupVisible && !highscoreVisible && (
+        <>
+          <ActionBar
+            onZoomIn={() => setZoom((z) => Math.min(MAX_ZOOM, z + 1))}
+            onZoomOut={() => setZoom((z) => Math.max(MIN_ZOOM, z - 1))}
+            onResetView={() => animateTo(NORWAY_CENTER, NORWAY_ZOOM)}
+            onGPS={handleGPS}
+            onHighscore={handleHighscore}
+            onOpenSettings={() => setSettingsVisible(true)}
+            gpsLoading={gpsLoading}
+          />
+          <MapStatusBar zoom={zoom} layerCount={activeLayers.size} />
+        </>
+      )}
+
+      {/* Modals */}
+      <SettingsPanel
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        layerTree={layerTree}
+        layersLoading={layersLoading}
+        activeLayers={activeLayers}
+        onLayerToggle={handleLayerToggle}
+        compositeVisible={compositeVisible}
+        onCompositeToggle={handleCompositeToggle}
+        basemap={basemap}
+        onBasemapChange={setBasemap}
+        onSearchPlace={handleSearchPlace}
+        onSelectPlace={handleSelectPlace}
+      />
+
+      <FeaturePopup
+        visible={popupVisible}
+        onClose={() => setPopupVisible(false)}
+        loading={popupLoading}
+        title={popupTitle}
+        features={popupFeatures}
+      />
+
+      <HighscoreModal
+        visible={highscoreVisible}
+        onClose={() => setHighscoreVisible(false)}
+        loading={highscoreLoading}
+        features={highscoreFeatures}
+        onZoomTo={handleZoomToRoad}
+      />
+
+      <ToastOverlay />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    position: 'relative',
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.two,
-    paddingBottom: BottomTabInset + Spacing.three,
-  },
-  header: { gap: Spacing.one },
-  title: {
-    textAlign: 'left',
-  },
-  mapContainer: {
-    flex: 1,
-    borderRadius: Spacing.three,
-    overflow: 'hidden',
+  mapWrapper: {
+    ...StyleSheet.absoluteFill,
   },
   map: {
     flex: 1,
   },
   webFallback: {
-    marginTop: Spacing.four,
-    gap: Spacing.two,
-  },
-  openButton: {
-    paddingVertical: Spacing.two,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
 });
