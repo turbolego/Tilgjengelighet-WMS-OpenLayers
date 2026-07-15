@@ -37,6 +37,14 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Tillat $(PRODUCT_NAME) å bruke din posisjon for å vise din plassering på kartet.",
+          "locationWhenInUsePermission": "Tillat $(PRODUCT_NAME) å bruke din posisjon for å vise din plassering på kartet.",
+          "locationAlwaysPermission": "Tillat $(PRODUCT_NAME) å bruke din posisjon for å vise din plassering på kartet."
+        }
       ]
     ],
     "experiments": {
