@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Pressable,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { type LayerInfo } from '@/constants/map-config';
@@ -75,10 +78,12 @@ export function SettingsPanel({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <View />
       </Pressable>
+      <SafeAreaView style={styles.safeArea}>
       <View style={styles.panel}>
         {/* Header */}
         <View style={styles.header}>
@@ -209,6 +214,7 @@ export function SettingsPanel({
           </Text>
         </View>
       </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -334,16 +340,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: MapColors.backdrop,
   },
-  panel: {
+  safeArea: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    margin: 'auto',
-    width: '90%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 8,
+    paddingBottom: 8,
+    paddingHorizontal: 8,
+  },
+  panel: {
+    width: '100%',
     maxWidth: 480,
-    maxHeight: '90%',
+    maxHeight: '100%',
     backgroundColor: MapColors.surface,
     borderWidth: 1,
     borderColor: MapColors.border,
