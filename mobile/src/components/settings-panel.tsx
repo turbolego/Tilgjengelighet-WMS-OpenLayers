@@ -2,14 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  Platform,
-  StatusBar,
 } from 'react-native';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { type LayerInfo } from '@/constants/map-config';
@@ -78,12 +75,11 @@ export function SettingsPanel({
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      statusBarTranslucent
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
-          <Pressable style={styles.panelTouchGuard} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.panel}>
+        <View />
+      </Pressable>
+      <View style={styles.panel}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Innstillinger</Text>
@@ -212,10 +208,7 @@ export function SettingsPanel({
             Kartverket / Geonorge · © Statens kartverk
           </Text>
         </View>
-          </View>
-          </Pressable>
-        </SafeAreaView>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -341,35 +334,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: MapColors.backdrop,
   },
-  safeArea: {
+  panel: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 8,
-    paddingBottom: 8,
-    paddingHorizontal: 8,
-  },
-  panelTouchGuard: {
-    width: '100%',
+    width: '90%',
     maxWidth: 480,
-    maxHeight: '100%',
-  },
-  panel: {
-    width: '100%',
-    maxWidth: 480,
-    maxHeight: '100%',
+    maxHeight: '90%',
     backgroundColor: MapColors.surface,
     borderWidth: 1,
     borderColor: MapColors.border,
     borderRadius: 14,
     overflow: 'hidden',
-    // Center on screen
     alignSelf: 'center',
-    marginVertical: 'auto',
   },
   header: {
     flexDirection: 'row',
@@ -504,72 +483,77 @@ const styles = StyleSheet.create({
     height: 15,
     borderWidth: 1,
     borderColor: MapColors.divider,
-    borderRadius: 3,
-    marginTop: 2,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 2,
   },
   checkboxChecked: {
     backgroundColor: MapColors.accent,
     borderColor: MapColors.accent,
   },
   checkmark: {
-    fontSize: 9,
-    color: MapTheme.ink,
+    fontSize: 10,
     fontWeight: '700',
+    color: MapTheme.ink,
   },
   layerLabel: {
     fontSize: 13,
     color: MapColors.bodyText,
-    lineHeight: 18,
     flex: 1,
+    lineHeight: 20,
   },
   layerLabelBold: {
-    fontWeight: '600',
+    fontWeight: '700',
+    color: MapColors.whiteText,
   },
   mutedText: {
     fontSize: 12,
     color: MapColors.mutedText,
     fontStyle: 'italic',
+    paddingVertical: 6,
   },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    borderRadius: 8,
     gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 4,
   },
   groupArrow: {
-    fontSize: 8,
+    fontSize: 10,
     color: MapColors.mutedText,
+    transform: [{ rotate: '0deg' }],
+    width: 14,
+    textAlign: 'center',
   },
   groupArrowOpen: {
     transform: [{ rotate: '90deg' }],
   },
   groupTitle: {
     fontSize: 13,
-    color: MapColors.bodyText,
     fontWeight: '600',
+    color: MapColors.headingText,
+    flex: 1,
   },
   groupChildren: {
-    paddingLeft: 12,
-    borderLeftWidth: 2,
-    borderLeftColor: MapColors.divider,
-    marginLeft: 6,
-    flexDirection: 'column',
-    gap: 1,
+    marginLeft: 14,
+    paddingLeft: 6,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(58,80,104,0.4)',
   },
   radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    gap: 10,
   },
   radio: {
-    width: 15,
-    height: 15,
-    borderRadius: 7.5,
-    borderWidth: 1,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
     borderColor: MapColors.divider,
     alignItems: 'center',
     justifyContent: 'center',
@@ -578,9 +562,9 @@ const styles = StyleSheet.create({
     borderColor: MapColors.accent,
   },
   radioDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: MapColors.accent,
   },
   radioLabel: {
@@ -589,12 +573,14 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 14,
     borderTopWidth: 1,
     borderTopColor: 'rgba(58,80,104,0.4)',
   },
   footerText: {
     fontSize: 11,
     color: MapColors.mutedText,
+    textAlign: 'center',
   },
 });

@@ -4,13 +4,10 @@ import {
   Linking,
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Platform,
-  StatusBar,
 } from 'react-native';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { esc } from '@/utils/map-api';
@@ -27,10 +24,8 @@ export interface FeaturePopupProps {
 
 /**
  * Extract a human-readable label from a feature.
- * Uses the first meaningful property (not bildefil, not ID, not coordinate).
  */
 function featureLabel(feat: FeatureInfo): string {
-  // Try: type name, object type, or any classification field
   const labelKeys = [
     'objekttypenavn', 'objtype', 'type', 'navn', 'name',
     'objekttype', 'kategori', 'featuretype',
@@ -55,14 +50,11 @@ export function FeaturePopup({
   title,
   features = [],
 }: FeaturePopupProps) {
-  // Which feature is currently selected (index in features array)
   const [selectedIndex, setSelectedIndex] = useState(0);
-  // Only meaningful features (with actual data)
   const meaningful = useMemo(
     () => features.filter((f) => f.props.size > 0),
     [features],
   );
-  // Clamp selectedIndex to valid range (derived — no setState in effect needed)
   const safeIndex = meaningful.length === 0
     ? 0
     : Math.min(selectedIndex, meaningful.length - 1);
@@ -74,147 +66,139 @@ export function FeaturePopup({
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      statusBarTranslucent
     >
-      {/* Backdrop — taps outside panel close the modal */}
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
-          <Pressable
-            style={styles.panelTouchGuard}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={styles.panel}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title} numberOfLines={1}>
-              {title ?? 'Stedsinfo'}
-            </Text>
-            <Pressable
-              onPress={onClose}
-              style={({ pressed }) => [
-                styles.closeButton,
-                pressed && styles.closeButtonPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Lukk stedsinfo"
-            >
-              <Text style={styles.closeButtonText}>✕</Text>
-            </Pressable>
-          </View>
-
-          {/* Loading state */}
-          {loading && (
-            <View style={styles.loadingRow}>
-              <Text style={styles.loadingText}>Henter stedsinfo…</Text>
-            </View>
-          )}
-
-          {/* Empty state */}
-          {!loading && meaningful.length === 0 && (
-            <Text style={styles.emptyText}>Ingen data funnet.</Text>
-          )}
-
-          {/* Feature picker: multiple features? show tabs to choose one */}
-          {!loading && meaningful.length > 0 && (
-            <>
-              {meaningful.length > 1 && (
-                <ScrollView
-                  horizontal
-                  style={styles.pickerRow}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.pickerContent}
-                >
-                  {meaningful.map((feat, i) => {
-                    const label = featureLabel(feat);
-                    const isActive = i === safeIndex;
-                    return (
-                      <Pressable
-                        key={`${feat.layerName}-${feat.featureId}-${i}`}
-                        style={[
-                          styles.pickerChip,
-                          isActive && styles.pickerChipActive,
-                        ]}
-                        onPress={() => setSelectedIndex(i)}
-                        accessibilityRole="tab"
-                        accessibilityState={{ selected: isActive }}
-                      >
-                        <Text
-                          style={[
-                            styles.pickerChipText,
-                            isActive && styles.pickerChipTextActive,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              )}
-
-              {/* Selected feature detail */}
-              {selected && (
-                <ScrollView
-                  style={styles.scrollBody}
-                  contentContainerStyle={styles.scrollContent}
-                >
-                  {/* Layer reference */}
-                  {selected.layerName && (
-                    <Text style={styles.layerLabel}>
-                      {esc(selected.layerName)}
-                      {selected.featureId ? ` · #${esc(selected.featureId)}` : ''}
-                    </Text>
-                  )}
-
-                  {/* Property table */}
-                  <View style={styles.table}>
-                    {[...selected.props.entries()]
-                      .filter(([k, v]) => !/^bildefil[123]$/i.test(k) && v)
-                      .map(([key, value]) => (
-                        <View key={key} style={styles.tableRow}>
-                          <Text style={styles.tableKey}>{esc(key)}</Text>
-                          <Text style={styles.tableValue}>{esc(value)}</Text>
-                        </View>
-                      ))}
-                  </View>
-
-                  {/* Images */}
-                  {selected.images.length > 0 && (
-                    <View style={styles.imageSection}>
-                      {selected.images.map((filename: string, ii: number) => {
-                        const src = `${IMAGE_BASE_URL}/${encodeURIComponent(filename)}`;
-                        return (
-                          <Pressable
-                            key={ii}
-                            onPress={() => Linking.openURL(src)}
-                            style={[
-                              styles.imageWrapper,
-                              selected.images.length === 1 && styles.imageWrapperSingle,
-                            ]}
-                          >
-                            <Image
-                              source={{ uri: src }}
-                              style={[
-                                styles.image,
-                                selected.images.length === 1 && styles.imageSingle,
-                              ]}
-                              resizeMode="cover"
-                              accessibilityLabel={`Bilde: ${filename}`}
-                            />
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  )}
-                </ScrollView>
-              )}
-            </>
-          )}
-        </View>
-          </Pressable>
-        </SafeAreaView>
+        <View />
       </Pressable>
+      <View style={styles.panel}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title ?? 'Stedsinfo'}
+          </Text>
+          <Pressable
+            onPress={onClose}
+            style={({ pressed }) => [
+              styles.closeButton,
+              pressed && styles.closeButtonPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk stedsinfo"
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </Pressable>
+        </View>
+
+        {/* Loading state */}
+        {loading && (
+          <View style={styles.loadingRow}>
+            <Text style={styles.loadingText}>Henter stedsinfo…</Text>
+          </View>
+        )}
+
+        {/* Empty state */}
+        {!loading && meaningful.length === 0 && (
+          <Text style={styles.emptyText}>Ingen data funnet.</Text>
+        )}
+
+        {/* Feature picker + selected detail */}
+        {!loading && meaningful.length > 0 && (
+          <>
+            {meaningful.length > 1 && (
+              <ScrollView
+                horizontal
+                style={styles.pickerRow}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.pickerContent}
+              >
+                {meaningful.map((feat, i) => {
+                  const label = featureLabel(feat);
+                  const isActive = i === safeIndex;
+                  return (
+                    <Pressable
+                      key={`${feat.layerName}-${feat.featureId}-${i}`}
+                      style={[
+                        styles.pickerChip,
+                        isActive && styles.pickerChipActive,
+                      ]}
+                      onPress={() => setSelectedIndex(i)}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: isActive }}
+                    >
+                      <Text
+                        style={[
+                          styles.pickerChipText,
+                          isActive && styles.pickerChipTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            {/* Selected feature detail */}
+            {selected && (
+              <ScrollView
+                style={styles.scrollBody}
+                contentContainerStyle={styles.scrollContent}
+              >
+                {/* Layer reference */}
+                {selected.layerName && (
+                  <Text style={styles.layerLabel}>
+                    {esc(selected.layerName)}
+                    {selected.featureId ? ` · #${esc(selected.featureId)}` : ''}
+                  </Text>
+                )}
+
+                {/* Property table */}
+                <View style={styles.table}>
+                  {[...selected.props.entries()]
+                    .filter(([k, v]) => !/^bildefil[123]$/i.test(k) && v)
+                    .map(([key, value]) => (
+                      <View key={key} style={styles.tableRow}>
+                        <Text style={styles.tableKey}>{esc(key)}</Text>
+                        <Text style={styles.tableValue}>{esc(value)}</Text>
+                      </View>
+                    ))}
+                </View>
+
+                {/* Images */}
+                {selected.images.length > 0 && (
+                  <View style={styles.imageSection}>
+                    {selected.images.map((filename: string, ii: number) => {
+                      const src = `${IMAGE_BASE_URL}/${encodeURIComponent(filename)}`;
+                      return (
+                        <Pressable
+                          key={ii}
+                          onPress={() => Linking.openURL(src)}
+                          style={[
+                            styles.imageWrapper,
+                            selected.images.length === 1 && styles.imageWrapperSingle,
+                          ]}
+                        >
+                          <Image
+                            source={{ uri: src }}
+                            style={[
+                              styles.image,
+                              selected.images.length === 1 && styles.imageSingle,
+                            ]}
+                            resizeMode="cover"
+                            accessibilityLabel={`Bilde: ${filename}`}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </>
+        )}
+      </View>
     </Modal>
   );
 }
@@ -224,32 +208,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: MapColors.backdrop,
   },
-  safeArea: {
+  panel: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 8,
-    paddingBottom: 8,
-    paddingHorizontal: 8,
-  },
-  panelTouchGuard: {
-    width: '100%',
+    width: '90%',
     maxWidth: 520,
-    maxHeight: '100%',
-  },
-  panel: {
-    width: '100%',
-    maxWidth: 520,
-    maxHeight: '100%',
+    maxHeight: '90%',
     backgroundColor: MapColors.surface,
     borderWidth: 1,
     borderColor: MapColors.border,
     borderRadius: 14,
     overflow: 'hidden',
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
