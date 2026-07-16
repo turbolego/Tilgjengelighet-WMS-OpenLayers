@@ -34,7 +34,13 @@ export function HighscoreModal({
   features = [],
   onZoomTo,
 }: HighscoreModalProps) {
-  const accessible = filterFullyAccessible(features);
+  // Wrap in try/catch — map scans produce various shapes, don't crash the modal
+  let accessible: HighscoreFeature[] = [];
+  try {
+    accessible = filterFullyAccessible(features);
+  } catch {
+    accessible = [];
+  }
 
   const renderContent = () => {
     if (loading) {
@@ -218,46 +224,47 @@ export function HighscoreModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <View />
-      </Pressable>
-      <SafeAreaView style={styles.safeArea}>
-      <View style={styles.panel}>
-        <View style={styles.header}>
-          <Text style={styles.title} numberOfLines={1}>
-            🏆 Toppliste – Universelt tilgjengelige veier
-          </Text>
-          <Pressable
-            onPress={onClose}
-            style={({ pressed }) => [
-              styles.closeButton,
-              pressed && styles.closeButtonPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Lukk toppliste"
-          >
-            <Text style={styles.closeButtonText}>✕</Text>
-          </Pressable>
-        </View>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={onClose}
+        statusBarTranslucent
+      >
+        <Pressable style={styles.backdrop} onPress={onClose}>
+          <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
+            <Pressable style={styles.panelTouchGuard} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.panel}>
+                <View style={styles.header}>
+                  <Text style={styles.title} numberOfLines={1}>
+                    🏆 Toppliste – Universelt tilgjengelige veier
+                  </Text>
+                  <Pressable
+                    onPress={onClose}
+                    style={({ pressed }) => [
+                      styles.closeButton,
+                      pressed && styles.closeButtonPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lukk toppliste"
+                  >
+                    <Text style={styles.closeButtonText}>✕</Text>
+                  </Pressable>
+                </View>
 
-        <ScrollView
-          style={styles.scrollBody}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {renderContent()}
-        </ScrollView>
-      </View>
-      </SafeAreaView>
-    </Modal>
-  );
-}
+                <ScrollView
+                  style={styles.scrollBody}
+                  contentContainerStyle={styles.scrollContent}
+                >
+                  {renderContent()}
+                </ScrollView>
+              </View>
+            </Pressable>
+          </SafeAreaView>
+        </Pressable>
+      </Modal>
+    );
+  }
 
 // ── Stat card ───────────────────────────────────────────────────────────────
 
@@ -337,6 +344,11 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 8,
     paddingBottom: 8,
     paddingHorizontal: 8,
+  },
+  panelTouchGuard: {
+    width: '100%',
+    maxWidth: 600,
+    maxHeight: '100%',
   },
   panel: {
     width: '100%',
