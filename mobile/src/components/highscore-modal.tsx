@@ -2,13 +2,10 @@ import React from 'react';
 import {
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Platform,
-  StatusBar,
 } from 'react-native';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { esc, filterFullyAccessible } from '@/utils/map-api';
@@ -34,7 +31,6 @@ export function HighscoreModal({
   features = [],
   onZoomTo,
 }: HighscoreModalProps) {
-  // Wrap in try/catch — map scans produce various shapes, don't crash the modal
   let accessible: HighscoreFeature[] = [];
   try {
     accessible = filterFullyAccessible(features);
@@ -224,47 +220,43 @@ export function HighscoreModal({
   };
 
   return (
-      <Modal
-        visible={visible}
-        transparent
-        animationType="fade"
-        onRequestClose={onClose}
-        statusBarTranslucent
-      >
-        <Pressable style={styles.backdrop} onPress={onClose}>
-          <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
-            <Pressable style={styles.panelTouchGuard} onPress={(e) => e.stopPropagation()}>
-              <View style={styles.panel}>
-                <View style={styles.header}>
-                  <Text style={styles.title} numberOfLines={1}>
-                    🏆 Toppliste – Universelt tilgjengelige veier
-                  </Text>
-                  <Pressable
-                    onPress={onClose}
-                    style={({ pressed }) => [
-                      styles.closeButton,
-                      pressed && styles.closeButtonPressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Lukk toppliste"
-                  >
-                    <Text style={styles.closeButtonText}>✕</Text>
-                  </Pressable>
-                </View>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <View />
+      </Pressable>
+      <View style={styles.panel}>
+        <View style={styles.header}>
+          <Text style={styles.title} numberOfLines={1}>
+            🏆 Toppliste – Universelt tilgjengelige veier
+          </Text>
+          <Pressable
+            onPress={onClose}
+            style={({ pressed }) => [
+              styles.closeButton,
+              pressed && styles.closeButtonPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk toppliste"
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </Pressable>
+        </View>
 
-                <ScrollView
-                  style={styles.scrollBody}
-                  contentContainerStyle={styles.scrollContent}
-                >
-                  {renderContent()}
-                </ScrollView>
-              </View>
-            </Pressable>
-          </SafeAreaView>
-        </Pressable>
-      </Modal>
-    );
-  }
+        <ScrollView
+          style={styles.scrollBody}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {renderContent()}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
 
 // ── Stat card ───────────────────────────────────────────────────────────────
 
@@ -333,34 +325,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: MapColors.backdrop,
   },
-  safeArea: {
+  panel: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 8,
-    paddingBottom: 8,
-    paddingHorizontal: 8,
-  },
-  panelTouchGuard: {
-    width: '100%',
+    width: '92%',
     maxWidth: 600,
-    maxHeight: '100%',
-  },
-  panel: {
-    width: '100%',
-    maxWidth: 600,
-    maxHeight: '100%',
+    maxHeight: '90%',
     backgroundColor: MapColors.surface,
     borderWidth: 1,
     borderColor: MapColors.border,
     borderRadius: 14,
     overflow: 'hidden',
     alignSelf: 'center',
-    marginVertical: 'auto',
   },
   header: {
     flexDirection: 'row',
