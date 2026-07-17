@@ -84,7 +84,7 @@ export function FeaturePopup({
               pressed && styles.closeButtonPressed,
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Lukk stedsinfo"
+            accessibilityLabel="Lukk vindu"
           >
             <Text style={styles.closeButtonText}>✕</Text>
           </Pressable>

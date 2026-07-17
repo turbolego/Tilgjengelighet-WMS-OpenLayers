@@ -242,7 +242,7 @@ export function HighscoreModal({
               pressed && styles.closeButtonPressed,
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Lukk toppliste"
+            accessibilityLabel="Lukk vindu"
           >
             <Text style={styles.closeButtonText}>✕</Text>
           </Pressable>

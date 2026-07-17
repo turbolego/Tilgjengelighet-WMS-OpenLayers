@@ -91,7 +91,7 @@ export function SettingsPanel({
               pressed && styles.closeButtonPressed,
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Lukk innstillinger"
+            accessibilityLabel="Lukk vindu"
           >
             <Text style={styles.closeButtonText}>✕</Text>
           </Pressable>
