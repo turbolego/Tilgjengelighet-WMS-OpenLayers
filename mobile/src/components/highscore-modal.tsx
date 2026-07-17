@@ -226,7 +226,7 @@ export function HighscoreModal({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk toppliste" accessibilityHint="Trykk for å lukke">
         <View />
       </Pressable>
       <View style={styles.panel}>
@@ -262,7 +262,7 @@ export function HighscoreModal({
 
 function StatCard({ value, label }: { value: string; label: string }) {
   return (
-    <View style={styles.statCard}>
+    <View style={styles.statCard} accessible accessibilityLabel={`${label}: ${value}`}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
@@ -296,7 +296,7 @@ function HighscoreSection({
 
       {/* Table rows */}
       {rows.map((row, ri) => (
-        <View key={ri} style={styles.tableRow}>
+        <View key={ri} style={styles.tableRow} accessible accessibilityLabel={`${row.rank}. ${row.cells.slice(0, -1).join(', ')}`}>
           <Text style={[styles.rankCell, styles.rankCol]}>{row.rank}</Text>
           {row.cells.map((cell, ci) => (
             <Text key={ci} style={styles.cell} numberOfLines={1}>
@@ -309,6 +309,8 @@ function HighscoreSection({
               styles.zoomButton,
               pressed && styles.zoomButtonPressed,
             ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Zoom til ${row.cells[0] || 'sted'}`}
           >
             <Text style={styles.zoomButtonText}>Zoom</Text>
           </Pressable>

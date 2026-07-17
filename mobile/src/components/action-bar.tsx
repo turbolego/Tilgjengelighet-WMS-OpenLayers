@@ -9,6 +9,7 @@ export interface ActionBarProps {
   onGPS: () => void;
   onHighscore: () => void;
   onOpenSettings: () => void;
+  onQueryCenter?: () => void;
   gpsLoading?: boolean;
 }
 
@@ -22,34 +23,40 @@ export function ActionBar({
   onGPS,
   onHighscore,
   onOpenSettings,
+  onQueryCenter,
   gpsLoading = false,
 }: ActionBarProps) {
   return (
     <View style={styles.container}>
-      <MapButton label="+" onPress={onZoomIn} />
-      <MapButton label="−" onPress={onZoomOut} />
+      <MapButton label="🔍" a11yLabel="Søk stedsinfo i kartets midtpunkt" onPress={onQueryCenter} />
       <View style={styles.divider} />
-      <MapButton label="⌂" onPress={onResetView} />
+      <MapButton label="+" a11yLabel="Zoom inn" onPress={onZoomIn} />
+      <MapButton label="−" a11yLabel="Zoom ut" onPress={onZoomOut} />
+      <View style={styles.divider} />
+      <MapButton label="⌂" a11yLabel="Nullstill kartvisning" onPress={onResetView} />
       <MapButton
         label={gpsLoading ? '⏳' : '📍'}
+        a11yLabel={gpsLoading ? 'Henter posisjon…' : 'Min posisjon'}
         onPress={onGPS}
         disabled={gpsLoading}
       />
-      <MapButton label="🏆" onPress={onHighscore} />
+      <MapButton label="🏆" a11yLabel="Toppliste – universelt tilgjengelige veier" onPress={onHighscore} />
       <View style={styles.divider} />
-      <MapButton label="⚙" onPress={onOpenSettings} accent />
+      <MapButton label="⚙" a11yLabel="Innstillinger" onPress={onOpenSettings} accent />
     </View>
   );
 }
 
 function MapButton({
   label,
+  a11yLabel,
   onPress,
   accent = false,
   disabled = false,
 }: {
   label: string;
-  onPress: () => void;
+  a11yLabel: string;
+  onPress?: () => void;
   accent?: boolean;
   disabled?: boolean;
 }) {
@@ -65,7 +72,7 @@ function MapButton({
         disabled && styles.buttonDisabled,
       ]}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={a11yLabel}
     >
       <Text
         style={[styles.buttonText, accent && styles.buttonTextAccent]}

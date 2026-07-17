@@ -76,7 +76,7 @@ export function SettingsPanel({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk innstillinger" accessibilityHint="Trykk for å lukke">
         <View />
       </Pressable>
       <View style={styles.panel}>
@@ -111,6 +111,8 @@ export function SettingsPanel({
               onChangeText={handleSearchChange}
               autoComplete="off"
               autoCorrect={false}
+              accessibilityLabel="Søk etter sted"
+              accessibilityHint="Skriv minst tre tegn for å søke etter stedsnavn"
             />
             {searchError !== '' && (
               <Text style={styles.errorText}>{searchError}</Text>
@@ -130,6 +132,8 @@ export function SettingsPanel({
                       setSearchResults([]);
                       onClose();
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${place.name} – ${place.municipality}`}
                   >
                     <Text style={styles.searchResultText}>
                       {place.name} – {place.municipality}
