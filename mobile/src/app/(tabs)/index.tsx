@@ -133,14 +133,9 @@ export default function HomeScreen() {
     [],
   );
 
-  // ── GetFeatureInfo (tap handler) ────────────────────────────────────────
-  const handleMapPress = useCallback(
-    async (event: any) => {
-      // event is a NativeSyntheticEvent
-      const nativeEvent = event.nativeEvent ?? event;
-      const lngLat = nativeEvent.lngLat as [number, number] | undefined;
-      if (!lngLat || lngLat.length < 2) return;
-
+  // ── GetFeatureInfo (core query) ──────────────────────────────────────────
+  const queryFeatureInfoAt = useCallback(
+    async (lngLat: [number, number]) => {
       setPopupLoading(true);
       setPopupVisible(true);
       setPopupTitle('Henter stedsinfo…');
@@ -186,6 +181,31 @@ export default function HomeScreen() {
     },
     [activeLayers, zoom],
   );
+
+  // ── GetFeatureInfo (map press handler) ──────────────────────────────────
+  const handleMapPress = useCallback(
+    async (event: any) => {
+      const nativeEvent = event.nativeEvent ?? event;
+      const lngLat = nativeEvent.lngLat as [number, number] | undefined;
+      if (!lngLat || lngLat.length < 2) return;
+      await queryFeatureInfoAt(lngLat);
+    },
+    [queryFeatureInfoAt],
+  );
+
+  // ── GetFeatureInfo (accessibility — query map center) ────────────────────
+  const handleQueryCenter = useCallback(async () => {
+    try {
+      const currentCenter = await mapRef.current?.getCenter();
+      if (!currentCenter || currentCenter.length < 2) {
+        showToast('Kunne ikke hente kartets posisjon.', 'error');
+        return;
+      }
+      await queryFeatureInfoAt([currentCenter[0], currentCenter[1]]);
+    } catch (err: any) {
+      showToast(`Feil: ${err.message}`, 'error');
+    }
+  }, [queryFeatureInfoAt]);
 
   // ── GPS ─────────────────────────────────────────────────────────────────
   const handleGPS = useCallback(async () => {
@@ -328,6 +348,7 @@ export default function HomeScreen() {
             onGPS={handleGPS}
             onHighscore={handleHighscore}
             onOpenSettings={() => setSettingsVisible(true)}
+            onQueryCenter={handleQueryCenter}
             gpsLoading={gpsLoading}
           />
           <MapStatusBar zoom={zoom} layerCount={activeLayers.size} />

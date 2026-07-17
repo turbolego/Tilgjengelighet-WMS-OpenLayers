@@ -67,7 +67,7 @@ export function FeaturePopup({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk stedsinfo" accessibilityHint="Trykk for å lukke">
         <View />
       </Pressable>
       <View style={styles.panel}>
@@ -124,6 +124,7 @@ export function FeaturePopup({
                       onPress={() => setSelectedIndex(i)}
                       accessibilityRole="tab"
                       accessibilityState={{ selected: isActive }}
+                      accessibilityLabel={label}
                     >
                       <Text
                         style={[
@@ -145,10 +146,13 @@ export function FeaturePopup({
               <ScrollView
                 style={styles.scrollBody}
                 contentContainerStyle={styles.scrollContent}
+                accessibilityLabel="Stedsdetaljer"
+                accessibilityHint="Sveip for å høre egenskaper"
+                accessibilityLiveRegion="polite"
               >
                 {/* Layer reference */}
                 {selected.layerName && (
-                  <Text style={styles.layerLabel}>
+                  <Text style={styles.layerLabel} accessibilityRole="header">
                     {esc(selected.layerName)}
                     {selected.featureId ? ` · #${esc(selected.featureId)}` : ''}
                   </Text>
@@ -159,7 +163,7 @@ export function FeaturePopup({
                   {[...selected.props.entries()]
                     .filter(([k, v]) => !/^bildefil[123]$/i.test(k) && v)
                     .map(([key, value]) => (
-                      <View key={key} style={styles.tableRow}>
+                      <View key={key} style={styles.tableRow} accessible accessibilityLabel={`${key}: ${value}`}>
                         <Text style={styles.tableKey}>{esc(key)}</Text>
                         <Text style={styles.tableValue}>{esc(value)}</Text>
                       </View>
