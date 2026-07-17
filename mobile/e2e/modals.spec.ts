@@ -58,7 +58,7 @@ test.describe('Modal UI Components', () => {
       await expect(dialog).toBeVisible();
 
       // Tap close button within the modal
-      await dialog.getByRole('button', { name: /lukk toppliste/i }).click();
+      await dialog.getByRole('button', { name: /lukk vindu/i }).click();
 
       // Modal should close
       await expect(dialog).not.toBeVisible();
@@ -145,7 +145,7 @@ test.describe('Modal UI Components', () => {
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
 
-      await dialog.getByRole('button', { name: /lukk innstillinger/i }).click();
+      await dialog.getByRole('button', { name: /lukk vindu/i }).click();
       await expect(dialog).not.toBeVisible();
     });
 
@@ -258,7 +258,7 @@ test.describe('Modal UI Components', () => {
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
 
-      await dialog.getByRole('button', { name: /lukk stedsinfo/i }).click();
+      await dialog.getByRole('button', { name: /lukk vindu/i }).click();
       await expect(dialog).not.toBeVisible();
     });
   });
@@ -274,14 +274,15 @@ test.describe('Modal UI Components', () => {
       await expect(page.getByRole('dialog')).toBeVisible();
 
       // Close it
-      await page.getByRole('button', { name: /lukk toppliste/i }).click();
+      await page.getByRole('button', { name: /lukk vindu/i }).first().click();
+      await expect(page.getByRole('dialog')).not.toBeVisible();
 
       // Open settings
       await page.getByRole('button', { name: /åpne innstillinger/i }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
 
       // Close it
-      await page.getByRole('button', { name: /lukk innstillinger/i }).click();
+      await page.getByRole('button', { name: /lukk vindu/i }).first().click();
 
       // Open feature popup
       await page.getByRole('button', { name: /åpne stedsinfo/i }).click();

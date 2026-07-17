@@ -208,7 +208,7 @@ export default function ModalTestPage() {
     <View style={styles.container}>
       {/* Page title */}
       <View style={styles.header}>
-        <Text style={styles.title} testID="test-page-title">
+        <Text style={styles.title} testID="test-page-title" role="heading" aria-level={1}>
           Modal Test Page
         </Text>
         <Text style={styles.subtitle}>
