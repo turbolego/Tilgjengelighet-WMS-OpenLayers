@@ -6,11 +6,11 @@ export const MapTheme = {
   inkMid: '#1c2533',
   inkLight: '#2d3f55',
   steel: '#3a5068',
-  mist: '#8aa3b8',
+  mist: '#b0c6d4',
   fog: '#c8d8e4',
   paper: '#f0f4f7',
   white: '#ffffff',
-  amber: '#e8a020',
+  amber: '#ecaa30',
   amberDeep: '#c07010',
   redWarn: '#c0392b',
 } as const;

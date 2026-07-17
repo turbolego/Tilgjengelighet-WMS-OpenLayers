@@ -225,8 +225,9 @@ export function HighscoreModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      aria-label="Toppliste"
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk toppliste" accessibilityHint="Trykk for å lukke">
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk toppliste" accessibilityHint="Trykk for å lukke" accessibilityRole="button">
         <View />
       </Pressable>
       <View style={styles.panel}>

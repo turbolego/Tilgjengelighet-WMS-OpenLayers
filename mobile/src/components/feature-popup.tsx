@@ -66,8 +66,9 @@ export function FeaturePopup({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      aria-label="Stedsinfo"
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk stedsinfo" accessibilityHint="Trykk for å lukke">
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk stedsinfo" accessibilityHint="Trykk for å lukke" accessibilityRole="button">
         <View />
       </Pressable>
       <View style={styles.panel}>
@@ -110,6 +111,7 @@ export function FeaturePopup({
                 style={styles.pickerRow}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.pickerContent}
+                accessibilityRole="tablist"
               >
                 {meaningful.map((feat, i) => {
                   const label = featureLabel(feat);
@@ -305,11 +307,11 @@ const styles = StyleSheet.create({
   pickerChipText: {
     fontSize: 12,
     fontWeight: '500',
-    color: MapColors.mutedText,
+    color: MapColors.whiteText,
     maxWidth: 140,
   },
   pickerChipTextActive: {
-    color: MapTheme.amber,
+    color: MapColors.whiteText,
     fontWeight: '700',
   },
   layerLabel: {

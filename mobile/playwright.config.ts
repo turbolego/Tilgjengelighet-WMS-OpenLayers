@@ -3,7 +3,11 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright config for Expo Web E2E tests.
  *
- * Tests target the static web export (npx expo export --platform web)
+ * Includes two project suites:
+ *  - chromium:     existing modal UI functional tests (modals.spec.ts)
+ *  - chromium-a11y: axe-core WCAG 2.3 AAA accessibility audit (a11y.spec.ts)
+ *
+ * Both target the static web export (npx expo export --platform web)
  * served locally.  The webServer block auto-starts the server.
  */
 export default defineConfig({
@@ -34,9 +38,17 @@ export default defineConfig({
   },
 
   projects: [
+    /* ── Chromium: existing modal UI tests ─────────────────────── */
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testMatch: /modals\.spec\.ts/,
+    },
+    /* ── Chromium A11y: axe-core WCAG 2.3 AAA audit ────────────── */
+    {
+      name: 'chromium-a11y',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /a11y\.spec\.ts/,
     },
   ],
 });

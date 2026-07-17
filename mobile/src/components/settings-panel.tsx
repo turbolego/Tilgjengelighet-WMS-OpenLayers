@@ -75,8 +75,9 @@ export function SettingsPanel({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      aria-label="Innstillinger"
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk innstillinger" accessibilityHint="Trykk for å lukke">
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk innstillinger" accessibilityHint="Trykk for å lukke" accessibilityRole="button">
         <View />
       </Pressable>
       <View style={styles.panel}>
@@ -290,6 +291,7 @@ function LayerCheckbox({
       onPress={onToggle}
       style={styles.layerItem}
       accessibilityRole="checkbox"
+      aria-checked={checked}
       accessibilityLabel={`Vis lag: ${label}`}
     >
       <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
@@ -321,6 +323,7 @@ function BasemapRadio({
       onPress={() => onChange(value)}
       style={styles.radioRow}
       accessibilityRole="radio"
+      aria-checked={isSelected}
       accessibilityLabel={label}
     >
       <View style={[styles.radio, isSelected && styles.radioSelected]}>
