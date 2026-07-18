@@ -150,17 +150,6 @@ test.describe('Accessibility Audit (WCAG 2.2 AAA)', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
-  //  Rustine: explore/info page (renders on web)
-  // ──────────────────────────────────────────────────────────────────────────
-
-  test.skip('info/explore page has zero violations', async ({ page }) => {
-    await page.goto('/explore');
-    await page.waitForTimeout(1000);
-
-    await scanPage(page, 'explore page');
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
   //  Full-page scan with all interactive states at once
   // ──────────────────────────────────────────────────────────────────────────
 
