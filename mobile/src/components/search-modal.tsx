@@ -106,7 +106,9 @@ export function SearchModal({
             accessibilityHint="Skriv minst tre tegn for å søke etter stedsnavn"
           />
           {error !== '' && <Text style={styles.error}>{error}</Text>}
-          <ScrollView>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+          >
             {results.length === 0 && query.length >= 3 && (
               <Text style={styles.emptyText}>Ingen steder funnet.</Text>
             )}

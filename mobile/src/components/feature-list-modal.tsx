@@ -192,8 +192,8 @@ export function FeatureListModal({
                     <Text style={styles.groupCount}>{feats.length}</Text>
                   </Pressable>
                   {isOpen &&
-                    feats.map((feat, i) => (
-                      <View key={i} style={styles.featRow} accessible>
+                    feats.map((feat) => (
+                      <View key={`${feat.layerName}::${feat.featureId}`} style={styles.featRow} accessible>
                         <Text style={styles.featName}>{groupLabel(feat)}</Text>
                         {[...feat.props.entries()]
                           .filter(
