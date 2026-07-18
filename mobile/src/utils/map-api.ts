@@ -23,6 +23,25 @@ import {
 
 export { esc, parseCapabilities, parseFeatureInfoText, parseGMLFeatureInfo, filterFullyAccessible };
 
+// ── Coordinate conversion: EPSG:4326 (lon/lat) → EPSG:3857 (Web Mercator meters) ────
+// Required because WMS 1.3.0 with EPSG:4326 uses reversed axis order (lat,lon),
+// causing BBOX misalignment. All GetFeatureInfo queries use EPSG:3857 to avoid
+// this pitfall, matching the web app's proven approach.
+
+function lonLatToMercator(lon: number, lat: number): [number, number] {
+  const x = (lon * 20037508.34) / 180;
+  const y =
+    Math.log(Math.tan(((90 + lat) * Math.PI) / 360)) / (Math.PI / 180) *
+    (20037508.34 / 180);
+  return [x, y];
+}
+
+function extent4326to3857(extent: { xMin: number; yMin: number; xMax: number; yMax: number }) {
+  const [xMin, yMin] = lonLatToMercator(extent.xMin, extent.yMin);
+  const [xMax, yMax] = lonLatToMercator(extent.xMax, extent.yMax);
+  return { xMin, yMin, xMax, yMax };
+}
+
 // ── GetCapabilities ──────────────────────────────────────────────────────────
 
 export async function fetchCapabilitiesXML(): Promise<string> {
@@ -45,17 +64,16 @@ export function buildFeatureInfoUrl(
   zoom: number,
 ): string {
   const [lng, lat] = coordinate;
+  const [mx, my] = lonLatToMercator(lng, lat);
 
-  // Convert zoom to OL resolution approximation for EPSG:3857
+  // Resolution in meters per pixel at this zoom level (Web Mercator)
   const resolution = 156543.03392804097 / Math.pow(2, zoom);
   const pixelSize = resolution / 2;
 
-  const x = lng;
-  const y = lat;
   const bboxW = pixelSize * 101;
   const bboxH = pixelSize * 101;
 
-  const bbox = `${x - bboxW},${y - bboxH},${x + bboxW},${y + bboxH}`;
+  const bbox = `${mx - bboxW},${my - bboxH},${mx + bboxW},${my + bboxH}`;
 
   const queryLayers =
     activeLayers.length > 0 ? activeLayers.join(',') : 'tilgjengelighet3';
@@ -72,7 +90,7 @@ export function buildFeatureInfoUrl(
     J: '50',
     WIDTH: '101',
     HEIGHT: '101',
-    CRS: 'EPSG:4326',
+    CRS: 'EPSG:3857',
     BBOX: bbox,
     language: 'Norwegian',
   });
@@ -91,19 +109,21 @@ export async function fetchFeatureInfo(url: string): Promise<string> {
 export async function scanForHighscoreData(
   extent: { xMin: number; yMin: number; xMax: number; yMax: number },
 ): Promise<ReturnType<typeof parseGMLFeatureInfo>> {
+  // Convert degree extent to Web Mercator meters for WMS 1.3.0 query
+  const merc = extent4326to3857(extent);
   const gridSize = HIGHSCORE_GRID_SIZE;
-  const xStep = (extent.xMax - extent.xMin) / gridSize;
-  const yStep = (extent.yMax - extent.yMin) / gridSize;
+  const xStep = (merc.xMax - merc.xMin) / gridSize;
+  const yStep = (merc.yMax - merc.yMin) / gridSize;
 
   const deduped = new Map<string, ReturnType<typeof parseGMLFeatureInfo>[number]>();
 
   const requests: string[] = [];
 
-  // Build all request URLs (EPSG:4326 for simplicity)
+  // Build all request URLs (EPSG:3857)
   for (let xi = 0; xi < gridSize; xi++) {
     for (let yi = 0; yi < gridSize; yi++) {
-      const cx = extent.xMin + (xi + 0.5) * xStep;
-      const cy = extent.yMin + (yi + 0.5) * yStep;
+      const cx = merc.xMin + (xi + 0.5) * xStep;
+      const cy = merc.yMin + (yi + 0.5) * yStep;
       const cellW = xStep * 1.5;
       const cellH = yStep * 1.5;
 
@@ -125,7 +145,7 @@ export async function scanForHighscoreData(
         J: '1',
         WIDTH: '3',
         HEIGHT: '3',
-        CRS: 'EPSG:4326',
+        CRS: 'EPSG:3857',
         BBOX: bbox,
       });
 
@@ -165,9 +185,11 @@ export async function scanViewportFeatures(
   extent: { xMin: number; yMin: number; xMax: number; yMax: number },
   activeLayers: string[],
 ): Promise<FeatureInfo[]> {
+  // Convert degree extent to Web Mercator meters
+  const merc = extent4326to3857(extent);
   const gridSize = 6;
-  const xStep = (extent.xMax - extent.xMin) / gridSize;
-  const yStep = (extent.yMax - extent.yMin) / gridSize;
+  const xStep = (merc.xMax - merc.xMin) / gridSize;
+  const yStep = (merc.yMax - merc.yMin) / gridSize;
 
   const deduped = new Map<string, FeatureInfo>();
   const queryLayers =
@@ -176,8 +198,8 @@ export async function scanViewportFeatures(
 
   for (let xi = 0; xi < gridSize; xi++) {
     for (let yi = 0; yi < gridSize; yi++) {
-      const cx = extent.xMin + (xi + 0.5) * xStep;
-      const cy = extent.yMin + (yi + 0.5) * yStep;
+      const cx = merc.xMin + (xi + 0.5) * xStep;
+      const cy = merc.yMin + (yi + 0.5) * yStep;
       const cellW = xStep * 0.6;
       const cellH = yStep * 0.6;
 
@@ -194,7 +216,7 @@ export async function scanViewportFeatures(
         J: '2',
         WIDTH: '5',
         HEIGHT: '5',
-        CRS: 'EPSG:4326',
+        CRS: 'EPSG:3857',
         BBOX: bbox,
         language: 'Norwegian',
       });
