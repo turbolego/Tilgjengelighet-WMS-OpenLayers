@@ -101,8 +101,8 @@ test.describe('Accessibility Audit (WCAG 2.2 AAA)', () => {
     await scanPage(page, 'settings panel (empty)');
   });
 
-  test('settings panel (search with results) has zero violations', async ({ page }) => {
-    await page.getByRole('button', { name: /åpne innstillinger/i }).click();
+  test('settings panel (search modal) has zero violations', async ({ page }) => {
+    await page.getByRole('button', { name: /åpne søk/i }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
@@ -110,7 +110,7 @@ test.describe('Accessibility Audit (WCAG 2.2 AAA)', () => {
     await dialog.getByPlaceholder(/skriv inn stedsnavn/i).fill('Oslo');
     await page.waitForTimeout(600);
 
-    await scanPage(page, 'settings panel (search results)');
+    await scanPage(page, 'search modal (with results)');
   });
 
   test('settings panel (expanded layer tree) has zero violations', async ({ page }) => {
@@ -135,19 +135,6 @@ test.describe('Accessibility Audit (WCAG 2.2 AAA)', () => {
     await expect(dialog).toBeVisible();
 
     await scanPage(page, 'feature popup');
-  });
-
-  test('feature popup (second chip) has zero violations', async ({ page }) => {
-    await page.getByRole('button', { name: /åpne stedsinfo/i }).click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-
-    // Switch to second feature chip
-    const chips = dialog.getByRole('tab');
-    await chips.nth(1).click();
-    await page.waitForTimeout(300);
-
-    await scanPage(page, 'feature popup (second chip selected)');
   });
 
   // ──────────────────────────────────────────────────────────────────────────

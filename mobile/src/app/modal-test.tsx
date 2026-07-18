@@ -22,6 +22,7 @@ import type { HighscoreFeature } from '@/components/highscore-modal';
 import { HighscoreModal } from '@/components/highscore-modal';
 import { SettingsPanel } from '@/components/settings-panel';
 import { FeaturePopup } from '@/components/feature-popup';
+import { SearchModal } from '@/components/search-modal';
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 
@@ -203,6 +204,7 @@ export default function ModalTestPage() {
   const [highscoreVisible, setHighscoreVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [popupVisible, setPopupVisible] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
 
   return (
     <View style={styles.container}>
@@ -234,6 +236,11 @@ export default function ModalTestPage() {
           label="📍 Åpne Stedsinfo"
           color={MapTheme.mist}
           onPress={() => setPopupVisible(true)}
+        />
+        <ActionButton
+          label="🔎 Åpne Søk"
+          color={MapColors.accent}
+          onPress={() => setSearchVisible(true)}
         />
 
         {/* Color swatch info */}
@@ -274,23 +281,6 @@ export default function ModalTestPage() {
         onBasemapChange={(v) =>
           console.log(`Basemap change: ${v} (web test mock)`)
         }
-        onSearchPlace={async (query) => [
-          {
-            name: 'Oslo sentrum',
-            municipality: 'Oslo',
-            lat: 59.911,
-            lon: 10.753,
-          },
-          {
-            name: 'Bergen sentrum',
-            municipality: 'Bergen',
-            lat: 60.391,
-            lon: 5.323,
-          },
-        ]}
-        onSelectPlace={(place) =>
-          console.log(`Select place: ${place.name} (web test mock)`)
-        }
       />
 
       <FeaturePopup
@@ -299,6 +289,18 @@ export default function ModalTestPage() {
         loading={false}
         title="Test — Stedsinfo"
         features={mockFeatureInfo}
+      />
+
+      <SearchModal
+        visible={searchVisible}
+        onClose={() => setSearchVisible(false)}
+        onSearchPlace={async (query) => [
+          { name: 'Oslo sentrum', municipality: 'Oslo', lat: 59.911, lon: 10.753 },
+          { name: 'Bergen sentrum', municipality: 'Bergen', lat: 60.391, lon: 5.323 },
+        ]}
+        onSelectPlace={(place) =>
+          console.log(`Select place: ${place.name} (web test mock)`)
+        }
       />
     </View>
   );

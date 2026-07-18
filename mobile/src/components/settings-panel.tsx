@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { type LayerInfo } from '@/constants/map-config';
-import { type PlaceResult } from '@/utils/map-api';
 
 export interface SettingsPanelProps {
   visible: boolean;
@@ -23,8 +21,6 @@ export interface SettingsPanelProps {
   onCompositeToggle: (visible: boolean) => void;
   basemap: 'osm' | 'topo' | 'none';
   onBasemapChange: (basemap: 'osm' | 'topo' | 'none') => void;
-  onSearchPlace: (query: string) => Promise<PlaceResult[]>;
-  onSelectPlace: (place: PlaceResult) => void;
 }
 
 export function SettingsPanel({
@@ -38,37 +34,7 @@ export function SettingsPanel({
   onCompositeToggle,
   basemap,
   onBasemapChange,
-  onSearchPlace,
-  onSelectPlace,
 }: SettingsPanelProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
-  const [searchError, setSearchError] = useState('');
-
-  const handleSearchChange = (text: string) => {
-    setSearchQuery(text);
-    if (text.trim().length < 3) {
-      setSearchResults([]);
-      setSearchError('');
-    }
-  };
-
-  useEffect(() => {
-    const trimmed = searchQuery.trim();
-    if (trimmed.length < 3) return;
-    const timer = setTimeout(async () => {
-      try {
-        const results = await onSearchPlace(searchQuery.trim());
-        setSearchResults(results);
-        setSearchError('');
-      } catch (err: any) {
-        setSearchResults([]);
-        setSearchError(err.message ?? 'Feil ved søk.');
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, onSearchPlace]);
-
   return (
     <Modal
       visible={visible}
@@ -101,50 +67,6 @@ export function SettingsPanel({
           style={styles.scrollBody}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Place search */}
-          <View style={styles.section}>
-            <Text style={styles.sectionHeading}>Søk etter sted</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Skriv inn stedsnavn…"
-              placeholderTextColor={MapTheme.mist}
-              value={searchQuery}
-              onChangeText={handleSearchChange}
-              autoComplete="off"
-              autoCorrect={false}
-              accessibilityLabel="Søk etter sted"
-              accessibilityHint="Skriv minst tre tegn for å søke etter stedsnavn"
-            />
-            {searchError !== '' && (
-              <Text style={styles.errorText}>{searchError}</Text>
-            )}
-            {searchResults.length > 0 && (
-              <View style={styles.searchResultsList}>
-                {searchResults.map((place, i) => (
-                  <Pressable
-                    key={i}
-                    style={({ pressed }) => [
-                      styles.searchResultItem,
-                      pressed && styles.searchResultItemPressed,
-                    ]}
-                    onPress={() => {
-                      onSelectPlace(place);
-                      setSearchQuery('');
-                      setSearchResults([]);
-                      onClose();
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${place.name} – ${place.municipality}`}
-                  >
-                    <Text style={styles.searchResultText}>
-                      {place.name} – {place.municipality}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </View>
-
           {/* Layer tree */}
           <View style={styles.section}>
             <Text style={styles.sectionHeading}>Kartlag</Text>
@@ -414,42 +336,6 @@ const styles = StyleSheet.create({
     color: MapColors.mutedText,
     lineHeight: 20,
     marginBottom: 10,
-  },
-  searchInput: {
-    width: '100%',
-    backgroundColor: MapTheme.ink,
-    borderWidth: 1,
-    borderColor: MapColors.border,
-    borderRadius: 8,
-    color: MapColors.bodyText,
-    fontSize: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
-  searchResultsList: {
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: MapColors.border,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  searchResultItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(58,80,104,0.4)',
-  },
-  searchResultItemPressed: {
-    backgroundColor: MapTheme.inkLight,
-  },
-  searchResultText: {
-    fontSize: 13,
-    color: MapColors.bodyText,
-  },
-  errorText: {
-    color: MapTheme.redWarn,
-    fontSize: 12,
-    marginTop: 4,
   },
   loadingRow: {
     flexDirection: 'row',

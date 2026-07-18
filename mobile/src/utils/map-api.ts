@@ -18,6 +18,7 @@ import {
   HIGHSCORE_GRID_SIZE,
   HIGHSCORE_FEATURE_COUNT,
   HIGHSCORE_BATCH_SIZE,
+  type FeatureInfo,
 } from '@/constants/map-config';
 
 export { esc, parseCapabilities, parseFeatureInfoText, parseGMLFeatureInfo, filterFullyAccessible };
@@ -151,6 +152,78 @@ export async function scanForHighscoreData(
         if (objid && !deduped.has(objid)) {
           deduped.set(objid, feat);
         }
+      }
+    }
+  }
+
+  return [...deduped.values()];
+}
+
+// ── Viewport feature scan ──────────────────────────────────────────────────────
+
+export async function scanViewportFeatures(
+  extent: { xMin: number; yMin: number; xMax: number; yMax: number },
+  activeLayers: string[],
+): Promise<FeatureInfo[]> {
+  const gridSize = 6;
+  const xStep = (extent.xMax - extent.xMin) / gridSize;
+  const yStep = (extent.yMax - extent.yMin) / gridSize;
+
+  const deduped = new Map<string, FeatureInfo>();
+  const queryLayers =
+    activeLayers.length > 0 ? activeLayers.join(',') : 'tilgjengelighet3';
+  const requests: string[] = [];
+
+  for (let xi = 0; xi < gridSize; xi++) {
+    for (let yi = 0; yi < gridSize; yi++) {
+      const cx = extent.xMin + (xi + 0.5) * xStep;
+      const cy = extent.yMin + (yi + 0.5) * yStep;
+      const cellW = xStep * 0.6;
+      const cellH = yStep * 0.6;
+
+      const bbox = `${cx - cellW},${cy - cellH},${cx + cellW},${cy + cellH}`;
+      const params = new URLSearchParams({
+        REQUEST: 'GetFeatureInfo',
+        SERVICE: 'WMS',
+        VERSION: '1.3.0',
+        LAYERS: queryLayers,
+        QUERY_LAYERS: queryLayers,
+        INFO_FORMAT: 'text/plain',
+        FEATURE_COUNT: '30',
+        I: '2',
+        J: '2',
+        WIDTH: '5',
+        HEIGHT: '5',
+        CRS: 'EPSG:4326',
+        BBOX: bbox,
+        language: 'Norwegian',
+      });
+      requests.push(`${WMS_URL}?${params.toString()}`);
+    }
+  }
+
+  const batchSize = 8;
+  for (let i = 0; i < requests.length; i += batchSize) {
+    const batch = requests.slice(i, i + batchSize);
+    const responses = await Promise.allSettled(
+      batch.map((url) => fetch(url).then((r) => r.text())),
+    );
+
+    for (const result of responses) {
+      if (result.status !== 'fulfilled') continue;
+      const text = result.value;
+      if (!text.trim()) continue;
+      try {
+        const features = parseFeatureInfoText(text);
+        for (const feat of features) {
+          if (feat.props.size === 0) continue;
+          const key = `${feat.layerName}::${feat.featureId}`;
+          if (!deduped.has(key)) {
+            deduped.set(key, feat);
+          }
+        }
+      } catch {
+        // skip malformed responses
       }
     }
   }
