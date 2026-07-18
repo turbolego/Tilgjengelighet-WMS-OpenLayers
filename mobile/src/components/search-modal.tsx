@@ -28,13 +28,17 @@ export function SearchModal({
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < 3) {
+  const handleQueryChange = (text: string) => {
+    setQuery(text);
+    if (text.trim().length < 3) {
       setResults([]);
       setError('');
-      return;
     }
+  };
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 3) return;
     const timer = setTimeout(async () => {
       try {
         const r = await onSearchPlace(trimmed);
@@ -95,7 +99,7 @@ export function SearchModal({
             placeholder="Skriv inn stedsnavn…"
             placeholderTextColor={MapTheme.mist}
             value={query}
-            onChangeText={setQuery}
+            onChangeText={handleQueryChange}
             autoComplete="off"
             autoCorrect={false}
             accessibilityLabel="Søk etter sted"
