@@ -134,7 +134,6 @@ test.describe('Modal UI Components', () => {
       // Assert layer tree sections
       await expect(dialog.getByText(/kartlag/i)).toBeVisible();
       await expect(dialog.getByText(/bakgrunnskart/i)).toBeVisible();
-      await expect(dialog.getByText(/søk etter sted/i)).toBeVisible();
 
       // Assert layer groups are present (expandable)
       await expect(dialog.getByText(/tilgjengelighet/i)).toBeVisible();
@@ -149,10 +148,13 @@ test.describe('Modal UI Components', () => {
       await expect(dialog).not.toBeVisible();
     });
 
-    test('search input accepts text and shows results', async ({ page }) => {
-      await page.getByRole('button', { name: /åpne innstillinger/i }).click();
+    test('search modal opens and shows results', async ({ page }) => {
+      await page.getByRole('button', { name: /åpne søk/i }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
+
+      // Assert title
+      await expect(dialog.getByText(/søk/i)).toBeVisible();
 
       // Find the search input (placeholder matches)
       const searchInput = dialog.getByPlaceholder(/skriv inn stedsnavn/i);
@@ -230,27 +232,16 @@ test.describe('Modal UI Components', () => {
       await expect(dialog.getByText(/stigning/i)).toBeVisible();
     });
 
-    test('feature picker switches between features', async ({ page }) => {
+    test('feature picker shows single feature detail', async ({ page }) => {
       await page.getByRole('button', { name: /åpne stedsinfo/i }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
 
-      // Feature picker chips should show both features (role=tab from accessibilityRole)
-      const chips = dialog.getByRole('tab');
-      await expect(chips).toHaveCount(2);
-
-      // First chip (Turvei - grusdekke) should be selected initially
-      // react-native-web renders accessibilityState={{selected:true}} as class, not aria
-      // Check that the first chip has the amber border/background (active styling)
-      const firstChip = chips.first();
-      await expect(firstChip).toBeVisible();
-      await chips.nth(1).click();
-
-      // Second chip should now be active after click
-      // (click doesn't fail even if we can't easily check active state via aria)
-      // Second feature's data should be visible
-      await expect(dialog.getByText(/gang- og sykkelvei/i).first()).toBeVisible();
-      await expect(dialog.getByText(/300 cm/i)).toBeVisible();
+      // First feature's data should be visible directly (no picker chips)
+      await expect(dialog.getByText(/turvei - grusdekke/i).first()).toBeVisible();
+      await expect(dialog.getByText(/bredde/i)).toBeVisible();
+      await expect(dialog.getByText(/200 cm/i)).toBeVisible();
+      await expect(dialog.getByText(/stigning/i)).toBeVisible();
     });
 
     test('closes feature popup with close button', async ({ page }) => {

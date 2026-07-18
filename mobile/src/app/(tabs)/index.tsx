@@ -10,6 +10,8 @@ import * as Location from 'expo-location';
 import { ActionBar } from '@/components/action-bar';
 import { StatusBar as MapStatusBar } from '@/components/status-bar';
 import { SettingsPanel } from '@/components/settings-panel';
+import { FeatureListModal } from '@/components/feature-list-modal';
+import { SearchModal } from '@/components/search-modal';
 import { FeaturePopup } from '@/components/feature-popup';
 import { HighscoreModal, type HighscoreFeature } from '@/components/highscore-modal';
 import { ToastOverlay, showToast } from '@/components/toast-overlay';
@@ -31,6 +33,7 @@ import {
   parseFeatureInfoText,
   scanForHighscoreData,
   searchPlaces,
+  scanViewportFeatures,
   type PlaceResult,
 } from '@/utils/map-api';
 
@@ -74,6 +77,10 @@ export default function HomeScreen() {
   const [highscoreVisible, setHighscoreVisible] = useState(false);
   const [highscoreLoading, setHighscoreLoading] = useState(false);
   const [highscoreFeatures, setHighscoreFeatures] = useState<HighscoreFeature[]>([]);
+  const [featureListVisible, setFeatureListVisible] = useState(false);
+  const [featureListLoading, setFeatureListLoading] = useState(false);
+  const [featureListFeatures, setFeatureListFeatures] = useState<FeatureInfo[]>([]);
+  const [searchVisible, setSearchVisible] = useState(false);
 
   // ── GPS loading ──────────────────────────────────────────────────────────
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -193,20 +200,6 @@ export default function HomeScreen() {
     [queryFeatureInfoAt],
   );
 
-  // ── GetFeatureInfo (accessibility — query map center) ────────────────────
-  const handleQueryCenter = useCallback(async () => {
-    try {
-      const currentCenter = await mapRef.current?.getCenter();
-      if (!currentCenter || currentCenter.length < 2) {
-        showToast('Kunne ikke hente kartets posisjon.', 'error');
-        return;
-      }
-      await queryFeatureInfoAt([currentCenter[0], currentCenter[1]]);
-    } catch (err: any) {
-      showToast(`Feil: ${err.message}`, 'error');
-    }
-  }, [queryFeatureInfoAt]);
-
   // ── GPS ─────────────────────────────────────────────────────────────────
   const handleGPS = useCallback(async () => {
     if (isWeb) {
@@ -276,6 +269,22 @@ export default function HomeScreen() {
     }
   }, [computeExtent]);
 
+  const handleOpenFeatureList = useCallback(async () => {
+    setFeatureListVisible(true);
+    setFeatureListLoading(true);
+    setFeatureListFeatures([]);
+
+    try {
+      const extent = computeExtent();
+      const features = await scanViewportFeatures(extent, [...activeLayers]);
+      setFeatureListFeatures(features);
+    } catch (err: any) {
+      showToast(`Feil ved skanning: ${err.message}`, 'error');
+    } finally {
+      setFeatureListLoading(false);
+    }
+  }, [computeExtent, activeLayers]);
+
   const handleZoomToRoad = useCallback(
     (x: number, y: number) => {
       setHighscoreVisible(false);
@@ -339,7 +348,7 @@ export default function HomeScreen() {
       </View>
 
       {/* HUD overlays (visible when modals are closed) */}
-      {!settingsVisible && !popupVisible && !highscoreVisible && (
+      {!settingsVisible && !popupVisible && !highscoreVisible && !featureListVisible && !searchVisible && (
         <>
           <ActionBar
             onZoomIn={() => setZoom((z) => Math.min(MAX_ZOOM, z + 1))}
@@ -348,7 +357,8 @@ export default function HomeScreen() {
             onGPS={handleGPS}
             onHighscore={handleHighscore}
             onOpenSettings={() => setSettingsVisible(true)}
-            onQueryCenter={handleQueryCenter}
+            onOpenFeatureList={handleOpenFeatureList}
+            onOpenSearch={() => setSearchVisible(true)}
             gpsLoading={gpsLoading}
           />
           <MapStatusBar zoom={zoom} layerCount={activeLayers.size} />
@@ -367,8 +377,6 @@ export default function HomeScreen() {
         onCompositeToggle={handleCompositeToggle}
         basemap={basemap}
         onBasemapChange={setBasemap}
-        onSearchPlace={handleSearchPlace}
-        onSelectPlace={handleSelectPlace}
       />
 
       <FeaturePopup
@@ -377,6 +385,20 @@ export default function HomeScreen() {
         loading={popupLoading}
         title={popupTitle}
         features={popupFeatures}
+      />
+
+      <FeatureListModal
+        visible={featureListVisible}
+        onClose={() => setFeatureListVisible(false)}
+        loading={featureListLoading}
+        features={featureListFeatures}
+      />
+
+      <SearchModal
+        visible={searchVisible}
+        onClose={() => setSearchVisible(false)}
+        onSearchPlace={handleSearchPlace}
+        onSelectPlace={handleSelectPlace}
       />
 
       <HighscoreModal

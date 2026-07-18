@@ -9,7 +9,8 @@ export interface ActionBarProps {
   onGPS: () => void;
   onHighscore: () => void;
   onOpenSettings: () => void;
-  onQueryCenter?: () => void;
+  onOpenFeatureList: () => void;
+  onOpenSearch: () => void;
   gpsLoading?: boolean;
 }
 
@@ -23,13 +24,12 @@ export function ActionBar({
   onGPS,
   onHighscore,
   onOpenSettings,
-  onQueryCenter,
+  onOpenFeatureList,
+  onOpenSearch,
   gpsLoading = false,
 }: ActionBarProps) {
   return (
     <View style={styles.container}>
-      <MapButton label="🔍" a11yLabel="Søk stedsinfo i kartets midtpunkt" onPress={onQueryCenter} />
-      <View style={styles.divider} />
       <MapButton label="+" a11yLabel="Zoom inn" onPress={onZoomIn} />
       <MapButton label="−" a11yLabel="Zoom ut" onPress={onZoomOut} />
       <View style={styles.divider} />
@@ -41,7 +41,9 @@ export function ActionBar({
         disabled={gpsLoading}
       />
       <MapButton label="🏆" a11yLabel="Toppliste – universelt tilgjengelige veier" onPress={onHighscore} />
+      <MapButton label="📋" a11yLabel="Vis objekter i kartet" onPress={onOpenFeatureList} />
       <View style={styles.divider} />
+      <MapButton label="🔎" a11yLabel="Søk stedsnavn" onPress={onOpenSearch} />
       <MapButton label="⚙" a11yLabel="Innstillinger" onPress={onOpenSettings} accent />
     </View>
   );
