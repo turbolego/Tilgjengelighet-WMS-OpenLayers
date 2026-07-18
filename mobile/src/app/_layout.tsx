@@ -20,7 +20,7 @@ export default function RootLayout() {
       <AnimatedSplashOverlay />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen
-          name="(tabs)"
+          name="index"
           options={{ title: 'Kart' }}
         />
         <Stack.Screen
