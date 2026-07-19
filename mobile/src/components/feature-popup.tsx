@@ -144,18 +144,8 @@ export function FeaturePopup({
   title,
   features = [],
 }: FeaturePopupProps) {
-  // When the popup opens, reset selection so the user sees the picker first
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-
-  // Reset picker state whenever the popup opens with new features
-  React.useEffect(() => {
-    if (visible) {
-      setSelectedIdx(null);
-    }
-  }, [visible, features]);
-
   const meaningful = features.filter((f) => f.props.size > 0);
-  const selected = selectedIdx != null ? meaningful[selectedIdx] : null;
+  const autoSelected = meaningful.length === 1 ? meaningful[0] : null;
 
   return (
     <Modal
@@ -178,53 +168,61 @@ export function FeaturePopup({
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title} numberOfLines={1}>
-            {selected
-              ? title ?? 'Stedsinfo'
-              : title ?? 'Stedsinfo — velg objekt'}
+            {title ?? 'Stedsinfo'}
           </Text>
           <Pressable
-            onPress={() => {
-              if (selected) {
-                setSelectedIdx(null); // back to picker
-              } else {
-                onClose();
-              }
-            }}
-            style={({ pressed }) => [
-              styles.closeButton,
-              pressed && styles.closeButtonPressed,
-            ]}
+            style={styles.closeButton}
+            onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel={selected ? 'Tilbake til liste' : 'Lukk vindu'}
+            accessibilityLabel="Lukk vindu"
           >
-            <Text style={styles.closeButtonText}>
-              {selected ? '←' : '✕'}
-            </Text>
+            <Text style={styles.closeButtonText}>✕</Text>
           </Pressable>
         </View>
 
-        {/* Loading state */}
-        {loading && (
-          <View style={styles.loadingRow}>
-            <Text style={styles.loadingText}>Henter stedsinfo…</Text>
-          </View>
-        )}
-
-        {/* Empty state */}
-        {!loading && meaningful.length === 0 && (
-          <Text style={styles.emptyText}>Ingen data funnet.</Text>
-        )}
-
-        {/* Picker or detail */}
-        {!loading && meaningful.length > 0 && !selected && (
-          <FeaturePicker
-            features={meaningful}
-            onSelect={(_f, idx) => setSelectedIdx(idx)}
+        {/* Mount/unmount stateful content with the popup lifecycle */}
+        {visible && (
+          <PopupContent
+            loading={loading}
+            meaningful={meaningful}
+            autoSelected={autoSelected}
           />
         )}
-        {!loading && selected && <FeatureDetail feature={selected} />}
       </View>
     </Modal>
+  );
+}
+
+/** Inner component that mounts/unmounts with the popup, resetting state naturally */
+function PopupContent({
+  loading,
+  meaningful,
+  autoSelected,
+}: {
+  loading: boolean;
+  meaningful: FeatureInfo[];
+  autoSelected: FeatureInfo | null;
+}) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const selected = selectedIdx != null ? meaningful[selectedIdx] : null;
+  const displayFeature = selected ?? autoSelected;
+
+  return (
+    <>
+      {loading && <Text style={styles.loadingText}>Laster ...</Text>}
+      {!loading && meaningful.length === 0 && (
+        <Text style={styles.emptyText}>Ingen data funnet.</Text>
+      )}
+
+      {/* Picker or detail */}
+      {!loading && meaningful.length > 0 && !displayFeature && (
+        <FeaturePicker
+          features={meaningful}
+          onSelect={(_f, idx) => setSelectedIdx(idx)}
+        />
+      )}
+      {!loading && displayFeature && <FeatureDetail feature={displayFeature} />}
+    </>
   );
 }
 
