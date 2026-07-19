@@ -280,9 +280,9 @@ export default function HomeScreen() {
   }, []);
 
   const handleRegionChange = useCallback(
-    (region: { geometry: { coordinates: [number, number] }; properties: { zoomLevel: number } }) => {
-      mapCenterRef.current = region.geometry.coordinates;
-      mapZoomRef.current = region.properties.zoomLevel;
+    (event: { nativeEvent: { center: [number, number]; zoom: number } }) => {
+      mapCenterRef.current = event.nativeEvent.center;
+      mapZoomRef.current = event.nativeEvent.zoom;
     },
     [],
   );

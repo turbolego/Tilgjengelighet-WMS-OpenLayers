@@ -22,8 +22,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "package": "no.geonorge.tilgjengelighet",
-      "predictiveBackGestureEnabled": false,
-      "edgeToEdge": true
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
