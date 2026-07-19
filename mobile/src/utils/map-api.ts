@@ -378,7 +378,6 @@ export async function fetchRoute(
     coordinates: route.coordinates,
   };
 
-  const distance = route.distance;
   const duration = route.duration;
 
   const geojson = {
