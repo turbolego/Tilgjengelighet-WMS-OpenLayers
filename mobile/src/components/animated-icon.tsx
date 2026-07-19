@@ -1,9 +1,11 @@
 import { Image } from 'expo-image';
 import * as SplashScreen from 'expo-splash-screen';
 import { useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+
+import { BUILD_VERSION, BUILD_DATE } from '@/constants/version';
 
 const INITIAL_SCALE_FACTOR = Dimensions.get('screen').height / 90;
 const DURATION = 600;
@@ -35,6 +37,12 @@ export function AnimatedSplashOverlay() {
 
   const image = <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />;
 
+  const versionText = (
+    <Text style={styles.versionText}>
+      Build {BUILD_VERSION} ({BUILD_DATE})
+    </Text>
+  );
+
   return animate ? (
     <Animated.View
       entering={splashKeyframe.duration(DURATION).withCallback((finished) => {
@@ -45,6 +53,7 @@ export function AnimatedSplashOverlay() {
       })}
       style={styles.splashOverlay}>
       {image}
+      {versionText}
     </Animated.View>
   ) : (
     <View
@@ -55,6 +64,7 @@ export function AnimatedSplashOverlay() {
       }}
       style={styles.splashOverlay}>
       {image}
+      {versionText}
     </View>
   );
 }
@@ -144,5 +154,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
+  },
+  versionText: {
+    position: 'absolute',
+    bottom: 48,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: 'monospace',
   },
 });

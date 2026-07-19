@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { type LayerInfo } from '@/constants/map-config';
+import { BUILD_VERSION, BUILD_DATE } from '@/constants/version';
 
 export interface SettingsPanelProps {
   visible: boolean;
@@ -135,6 +136,9 @@ export function SettingsPanel({
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             Kartverket / Geonorge · © Statens kartverk
+          </Text>
+          <Text style={styles.versionLine}>
+            Build {BUILD_VERSION} · {BUILD_DATE}
           </Text>
         </View>
       </View>
@@ -477,5 +481,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: MapColors.mutedText,
     textAlign: 'center',
+  },
+  versionLine: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.35)',
+    textAlign: 'center',
+    marginTop: 4,
+    fontFamily: 'monospace',
   },
 });

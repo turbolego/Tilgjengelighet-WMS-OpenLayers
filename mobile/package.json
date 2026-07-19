@@ -42,13 +42,21 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "prestart": "node scripts/gen-version.js",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
+    "gen-version": "node scripts/gen-version.js",
+    "preandroid": "node scripts/gen-version.js",
     "android": "expo run:android",
+    "preios": "node scripts/gen-version.js",
     "ios": "expo run:ios",
+    "preweb": "node scripts/gen-version.js",
     "web": "expo start --web",
+    "prebuild": "node scripts/gen-version.js",
     "lint": "expo lint",
+    "pretest:e2e": "node scripts/gen-version.js",
     "test:e2e": "expo export --platform web && playwright test",
+    "pretest:e2e:ci": "node scripts/gen-version.js",
     "test:e2e:ci": "expo export --platform web && playwright test"
   },
   "private": true
