@@ -4,7 +4,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { Map, Camera, RasterSource, Layer, type MapRef } from '@maplibre/maplibre-react-native';
+import { Map, Camera, RasterSource, Layer, GeoJSONSource, type MapRef, type LineLayerStyle } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 
 import { ActionBar } from '@/components/action-bar';
@@ -14,6 +14,7 @@ import { FeatureListModal } from '@/components/feature-list-modal';
 import { SearchModal } from '@/components/search-modal';
 import { FeaturePopup } from '@/components/feature-popup';
 import { HighscoreModal, type HighscoreFeature } from '@/components/highscore-modal';
+import { RoutePlannerModal } from '@/components/route-planner-modal';
 import { ToastOverlay, showToast } from '@/components/toast-overlay';
 import {
   WMS_TILE_URL,
@@ -35,6 +36,7 @@ import {
   searchPlaces,
   scanViewportFeatures,
   type PlaceResult,
+  type RouteResult,
 } from '@/utils/map-api';
 
 // Minimal empty style for "no basemap" (avoids empty/null mapStyle)
@@ -81,6 +83,9 @@ export default function HomeScreen() {
   const [featureListLoading, setFeatureListLoading] = useState(false);
   const [featureListFeatures, setFeatureListFeatures] = useState<FeatureInfo[]>([]);
   const [searchVisible, setSearchVisible] = useState(false);
+  const [routePlannerVisible, setRoutePlannerVisible] = useState(false);
+  const [routeGeojson, setRouteGeojson] = useState<RouteResult['geojson'] | null>(null);
+  const [myLocation, setMyLocation] = useState<[number, number] | null>(null);
 
   // ── GPS loading ──────────────────────────────────────────────────────────
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -224,6 +229,7 @@ export default function HomeScreen() {
       });
 
       animateTo([pos.coords.longitude, pos.coords.latitude], 14);
+      setMyLocation([pos.coords.longitude, pos.coords.latitude]);
     } catch (err: any) {
       const msg =
         err.code === 2
@@ -236,6 +242,19 @@ export default function HomeScreen() {
       setGpsLoading(false);
     }
   }, [isWeb, animateTo]);
+
+  // ── Route planner ──────────────────────────────────────────────────────
+  const handleOpenRoutePlanner = useCallback(() => {
+    setRoutePlannerVisible(true);
+  }, []);
+
+  const handleRouteResult = useCallback((result: RouteResult) => {
+    setRouteGeojson(result.geojson);
+  }, []);
+
+  const handleClearRoute = useCallback(() => {
+    setRouteGeojson(null);
+  }, []);
 
   // ── Highscore scanning ──────────────────────────────────────────────────
   const computeExtent = useCallback(() => {
@@ -344,6 +363,33 @@ export default function HomeScreen() {
           >
             <Layer id="geonorge-wms-layer" type="raster" />
           </RasterSource>
+
+          {/* Route overlay (OSRM walking route + accessibility overlay) */}
+          {routeGeojson && (
+            <GeoJSONSource
+              id="route-source"
+              data={routeGeojson}
+            >
+              <Layer
+                id="route-line-outline"
+                type="line"
+                style={{
+                  lineColor: '#000000',
+                  lineWidth: 6,
+                  lineOpacity: 0.4,
+                } satisfies LineLayerStyle}
+              />
+              <Layer
+                id="route-line"
+                type="line"
+                style={{
+                  lineColor: '#ecaa30',
+                  lineWidth: 3,
+                  lineOpacity: 0.85,
+                } satisfies LineLayerStyle}
+              />
+            </GeoJSONSource>
+          )}
         </Map>
       </View>
 
@@ -359,6 +405,7 @@ export default function HomeScreen() {
             onOpenSettings={() => setSettingsVisible(true)}
             onOpenFeatureList={handleOpenFeatureList}
             onOpenSearch={() => setSearchVisible(true)}
+            onOpenRoutePlanner={handleOpenRoutePlanner}
             gpsLoading={gpsLoading}
           />
           <MapStatusBar zoom={zoom} layerCount={activeLayers.size} />
@@ -399,6 +446,16 @@ export default function HomeScreen() {
         onClose={() => setSearchVisible(false)}
         onSearchPlace={handleSearchPlace}
         onSelectPlace={handleSelectPlace}
+      />
+
+      <RoutePlannerModal
+        visible={routePlannerVisible}
+        onClose={() => {
+          setRoutePlannerVisible(false);
+          handleClearRoute();
+        }}
+        myLocation={myLocation}
+        onRouteResult={handleRouteResult}
       />
 
       <HighscoreModal

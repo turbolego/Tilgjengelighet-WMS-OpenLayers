@@ -23,6 +23,22 @@ export const HIGHSCORE_GRID_SIZE = 8;
 export const HIGHSCORE_FEATURE_COUNT = 200;
 export const HIGHSCORE_BATCH_SIZE = 8;
 
+// ── Routing (OSRM) ────────────────────────────────────────────────────
+// Uses the public OSRM demo server (no API key needed) with walking profile.
+// The walking profile uses pedestrian infrastructure (footways, sidewalks,
+// pedestrian streets) which is the closest free proxy for wheelchair routing.
+// For production, self-host OSRM and point this URL to your own instance:
+//   https://github.com/Project-OSRM/osrm-backend
+export const OSRM_API_URL = 'https://router.project-osrm.org';
+
+// ── Accessibility assessment layer ─────────────────────────────────────
+// The t_vei_r layer contains road segments with wheelchair accessibility
+// assessment properties (tilgjengvurderingrulleman, etc.). We sample this
+// along the route to color segments by accessibility.
+export const ACCESSIBILITY_LAYER = 't_vei_r';
+export const ACCESSIBILITY_FEATURE_COUNT = 5;
+export const ACCESSIBILITY_SAMPLE_INTERVAL_M = 100; // sample every 100m
+
 export interface LayerInfo {
   name: string;
   title: string;
