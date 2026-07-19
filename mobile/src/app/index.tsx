@@ -55,6 +55,9 @@ export default function HomeScreen() {
   const mapRef = useRef<MapRef>(null);
   const [zoom, setZoom] = useState(NORWAY_ZOOM);
   const [center, setCenter] = useState<[number, number]>(NORWAY_CENTER);
+  // Track actual map position for viewport scanning (updated on pan/zoom)
+  const mapCenterRef = useRef<[number, number]>(NORWAY_CENTER);
+  const mapZoomRef = useRef(NORWAY_ZOOM);
 
   // ── Layer state ──────────────────────────────────────────────────────────
   const [layerTree, setLayerTree] = useState<LayerInfo[]>([]);
@@ -258,21 +261,31 @@ export default function HomeScreen() {
     setRouteGeojson(null);
   }, []);
 
-  // ── Highscore scanning ──────────────────────────────────────────────────
+  // ── Viewport scanning ──────────────────────────────────────────────────
   const computeExtent = useCallback(() => {
-    const lngPerPixel = 360 / (256 * Math.pow(2, zoom));
-    const latPerPixel = 180 / (256 * Math.pow(2, zoom));
+    const curZoom = mapZoomRef.current;
+    const curCenter = mapCenterRef.current;
+    const lngPerPixel = 360 / (256 * Math.pow(2, curZoom));
+    const latPerPixel = 180 / (256 * Math.pow(2, curZoom));
     const screenW = 360;
     const screenH = 600;
     const halfW = (screenW / 2) * lngPerPixel;
     const halfH = (screenH / 2) * latPerPixel;
     return {
-      xMin: center[0] - halfW,
-      yMin: center[1] - halfH,
-      xMax: center[0] + halfW,
-      yMax: center[1] + halfH,
+      xMin: curCenter[0] - halfW,
+      yMin: curCenter[1] - halfH,
+      xMax: curCenter[0] + halfW,
+      yMax: curCenter[1] + halfH,
     };
-  }, [center, zoom]);
+  }, []);
+
+  const handleRegionChange = useCallback(
+    (region: { geometry: { coordinates: [number, number] }; properties: { zoomLevel: number } }) => {
+      mapCenterRef.current = region.geometry.coordinates;
+      mapZoomRef.current = region.properties.zoomLevel;
+    },
+    [],
+  );
 
   const handleHighscore = useCallback(async () => {
     setHighscoreVisible(true);
@@ -347,6 +360,7 @@ export default function HomeScreen() {
           style={styles.map}
           mapStyle={currentMapStyle}
           onPress={handleMapPress}
+          onRegionDidChange={handleRegionChange}
           attribution={false}
           logo={false}
         >
