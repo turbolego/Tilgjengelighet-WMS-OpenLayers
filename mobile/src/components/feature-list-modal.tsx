@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { esc } from '@/utils/map-api';
 import type { FeatureInfo } from '@/constants/map-config';
@@ -35,6 +36,7 @@ export function FeatureListModal({
   loading,
   features,
 }: FeatureListModalProps) {
+  const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState(new Set<string>());
   const [filter, setFilter] = useState<string | null>(null);
 
@@ -86,7 +88,7 @@ export function FeatureListModal({
       >
         <View />
       </Pressable>
-      <View style={styles.panel}>
+      <View style={[styles.panel, { top: insets.top }]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>

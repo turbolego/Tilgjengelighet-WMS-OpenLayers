@@ -13,6 +13,7 @@ export interface ActionBarProps {
   onOpenSearch: () => void;
   onOpenRoutePlanner: () => void;
   gpsLoading?: boolean;
+  safeAreaBottom?: number;
 }
 
 const BTN_SIZE = 52;
@@ -29,9 +30,10 @@ export function ActionBar({
   onOpenSearch,
   onOpenRoutePlanner,
   gpsLoading = false,
+  safeAreaBottom = 0,
 }: ActionBarProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { bottom: 16 + safeAreaBottom }]}>
       <MapButton label="+" a11yLabel="Zoom inn" onPress={onZoomIn} />
       <MapButton label="−" a11yLabel="Zoom ut" onPress={onZoomOut} />
       <View style={styles.divider} />

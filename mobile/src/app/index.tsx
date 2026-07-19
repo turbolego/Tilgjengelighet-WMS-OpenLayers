@@ -4,6 +4,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Map, Camera, RasterSource, Layer, GeoJSONSource, type MapRef, type LineLayerStyle } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 
@@ -48,6 +49,7 @@ const EMPTY_STYLE = {
 
 export default function HomeScreen() {
   const isWeb = Platform.OS === 'web';
+  const insets = useSafeAreaInsets();
 
   // ── Map refs & state ─────────────────────────────────────────────────────
   const mapRef = useRef<MapRef>(null);
@@ -338,7 +340,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Map fills the screen */}
+      {/* Map fills the screen (edge-to-edge, draws behind system bars) */}
       <View style={styles.mapWrapper}>
         <Map
           ref={mapRef}
@@ -407,8 +409,9 @@ export default function HomeScreen() {
             onOpenSearch={() => setSearchVisible(true)}
             onOpenRoutePlanner={handleOpenRoutePlanner}
             gpsLoading={gpsLoading}
+            safeAreaBottom={insets.bottom}
           />
-          <MapStatusBar zoom={zoom} layerCount={activeLayers.size} />
+          <MapStatusBar zoom={zoom} layerCount={activeLayers.size} safeAreaBottom={insets.bottom} />
         </>
       )}
 

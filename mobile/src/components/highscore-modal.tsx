@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { esc, filterFullyAccessible } from '@/utils/map-api';
 
@@ -31,6 +32,7 @@ export function HighscoreModal({
   features = [],
   onZoomTo,
 }: HighscoreModalProps) {
+  const insets = useSafeAreaInsets();
   let accessible: HighscoreFeature[] = [];
   try {
     accessible = filterFullyAccessible(features);
@@ -230,7 +232,7 @@ export function HighscoreModal({
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk toppliste" accessibilityHint="Trykk for å lukke" accessibilityRole="button">
         <View />
       </Pressable>
-      <View style={styles.panel}>
+      <View style={[styles.panel, { top: insets.top }]}>
         <View style={styles.header}>
           <Text style={styles.title} numberOfLines={1}>
             🏆 Toppliste – Universelt tilgjengelige veier

@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { fetchRoute, searchPlaces, type PlaceResult, type RouteResult } from '@/utils/map-api';
 import { PlaceSearch } from './place-search';
@@ -25,6 +26,7 @@ export function RoutePlannerModal({
   myLocation,
   onRouteResult,
 }: RoutePlannerModalProps) {
+  const insets = useSafeAreaInsets();
   const [from, setFrom] = useState<PlaceResult | null>(null);
   const [to, setTo] = useState<PlaceResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -102,7 +104,7 @@ export function RoutePlannerModal({
       onRequestClose={handleClose}
       accessibilityViewIsModal
     >
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>🧭 Ruteplanlegger</Text>

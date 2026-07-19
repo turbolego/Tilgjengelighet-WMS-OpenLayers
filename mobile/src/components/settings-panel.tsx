@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { type LayerInfo } from '@/constants/map-config';
 
@@ -35,6 +36,7 @@ export function SettingsPanel({
   basemap,
   onBasemapChange,
 }: SettingsPanelProps) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal
       visible={visible}
@@ -46,7 +48,7 @@ export function SettingsPanel({
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk innstillinger" accessibilityHint="Trykk for å lukke" accessibilityRole="button">
         <View />
       </Pressable>
-      <View style={styles.panel}>
+      <View style={[styles.panel, { top: insets.top }]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Innstillinger</Text>

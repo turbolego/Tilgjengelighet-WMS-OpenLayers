@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapColors } from '@/constants/map-theme';
 import type { PlaceResult } from '@/utils/map-api';
 import { PlaceSearch } from './place-search';
@@ -23,6 +24,7 @@ export function SearchModal({
   onSearchPlace,
   onSelectPlace,
 }: SearchModalProps) {
+  const insets = useSafeAreaInsets();
   const handleSelect = (place: PlaceResult) => {
     onSelectPlace(place);
     onClose();
@@ -45,7 +47,7 @@ export function SearchModal({
       >
         <View />
       </Pressable>
-      <View style={styles.panel}>
+      <View style={[styles.panel, { top: insets.top }]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>🔎 Søk</Text>
