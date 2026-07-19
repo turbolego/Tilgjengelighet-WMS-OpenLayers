@@ -1,4 +1,4 @@
-name: Release
+name: Release APK (Direct Install)
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
     paths:
       - mobile/**
       - packages/shared/**
-      - .github/workflows/release.yml
+      - .github/workflows/release-apk.yml
   workflow_dispatch:
     inputs:
       platform:
@@ -31,10 +31,11 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
-  # ── Build Android ──────────────────────────────────────────────────
-  android:
+  # ── Build Android APK ─────────────────────────────────────────────
+  apk:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform == 'android' || inputs.platform == 'both' }}
     runs-on: ubuntu-latest
     outputs:
@@ -74,22 +75,17 @@ jobs:
         run: npx expo prebuild --platform android --clean
         working-directory: mobile
 
-      - name: Build Android AAB (Play Store bundle)
-        run: cd mobile/android && ./gradlew bundleRelease
-
       - name: Build Android APK (direct install)
         run: cd mobile/android && ./gradlew assembleRelease
 
-      - name: Upload Android artifacts
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: android-release
-          path: |
-            mobile/android/app/build/outputs/bundle/release/*.aab
-            mobile/android/app/build/outputs/apk/release/*.apk
+          name: android-apk-release
+          path: mobile/android/app/build/outputs/apk/release/*.apk
           retention-days: 7
 
-  # ── Build iOS ──────────────────────────────────────────────────────
+  # ── Build iOS ─────────────────────────────────────────────────────
   ios:
     if: ${{ github.event_name == 'workflow_dispatch' && (inputs.platform == 'ios' || inputs.platform == 'both') }}
     runs-on: macos-latest
@@ -141,10 +137,10 @@ jobs:
           path: mobile/ios/build/*-iphonesimulator/*.app
           retention-days: 7
 
-  # ── Create GitHub Release ──────────────────────────────────────────
+  # ── Create GitHub Release ─────────────────────────────────────────
   release:
-    needs: [android, ios]
-    if: ${{ !cancelled() && (needs.android.result == 'success' || needs.android.result == 'skipped') }}
+    needs: [apk, ios]
+    if: ${{ !cancelled() && (needs.apk.result == 'success' || needs.apk.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -162,16 +158,24 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Version tag: $TAG"
 
-      - name: Download Android artifacts
-        if: ${{ needs.android.result == 'success' }}
-        uses: actions/download-artifact@v8
+      - name: Download APK artifact
+        uses: actions/download-artifact@v7
         with:
-          name: android-release
+          name: android-apk-release
           path: artifacts/android
+
+      - name: Download AAB artifact (from AAB workflow)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: release-aab.yml
+          commit: ${{ github.sha }}
+          name: android-aab-release
+          path: artifacts/android
+          if_no_artifact_found: warn
 
       - name: Download iOS artifacts
         if: ${{ needs.ios.result == 'success' }}
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v7
         with:
           name: ios-release
           path: artifacts/ios
@@ -187,7 +191,7 @@ jobs:
         id: notes
         run: |
           {
-            echo "## 📱 Geonorge Tilgjengelighet — v${{ steps.tag.outputs.tag }}"
+            echo "## 📱 Geonorge Tilgjengelighet — APK-utgivelse v${{ steps.tag.outputs.tag }}"
             echo ""
             echo "| Platform | File | Description |"
             echo "|----------|------|-------------|"
@@ -197,18 +201,19 @@ jobs:
               ext="${fname##*.}"
               desc=""
               case "$ext" in
-                aab) desc="Play Store bundle" ;;
-                apk) desc="Direct install" ;;
+                aab) desc="Play Store-bundle (fra AAB-workflow)" ;;
+                apk) desc="Direkte installasjon" ;;
                 *) desc="App" ;;
               esac
               echo "| $platform | $fname | $desc |"
             done
             echo ""
-            echo "### Installation"
-            echo "- **Android**: Download the APK and install directly, or use the AAB for Play Store"
-            echo "- **iOS**: Requires a Mac with Xcode to install on simulator or device"
+            echo "### Installasjon"
+            echo "- **Android**: Last ned APK-filen og installer direkte på enheten"
+            echo "- **AAB**: Lastes ned separat som artefakt fra AAB-workflowen"
+            echo "- **iOS**: Krever Mac med Xcode for å installere på simulator eller enhet"
             echo ""
-            echo "> Built from commit \`$(git rev-parse --short HEAD)\`"
+            echo "> Bygget fra commit \`$(git rev-parse --short HEAD)\`"
           } > release-notes.md
           cat release-notes.md
 
