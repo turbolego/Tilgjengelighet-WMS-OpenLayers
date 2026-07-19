@@ -23,6 +23,12 @@ export const HIGHSCORE_GRID_SIZE = 8;
 export const HIGHSCORE_FEATURE_COUNT = 200;
 export const HIGHSCORE_BATCH_SIZE = 8;
 
+// ── OpenRouteService API ───────────────────────────────────────────────
+// Get your free API key at https://openrouteservice.org/dev/#/signup
+// Free tier: 500 requests/day, 40 requests/minute
+export const ORS_API_URL = 'https://api.openrouteservice.org';
+export const ORS_API_KEY = ''; // TODO: paste your API key here
+
 export interface LayerInfo {
   name: string;
   title: string;

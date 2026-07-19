@@ -4,7 +4,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { Map, Camera, RasterSource, Layer, type MapRef } from '@maplibre/maplibre-react-native';
+import { Map, Camera, RasterSource, Layer, GeoJSONSource, type MapRef, type LineLayerStyle } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 
 import { ActionBar } from '@/components/action-bar';
@@ -12,6 +12,7 @@ import { StatusBar as MapStatusBar } from '@/components/status-bar';
 import { SettingsPanel } from '@/components/settings-panel';
 import { FeatureListModal } from '@/components/feature-list-modal';
 import { SearchModal } from '@/components/search-modal';
+import { RoutePlannerModal } from '@/components/route-planner-modal';
 import { FeaturePopup } from '@/components/feature-popup';
 import { HighscoreModal, type HighscoreFeature } from '@/components/highscore-modal';
 import { ToastOverlay, showToast } from '@/components/toast-overlay';
@@ -22,6 +23,7 @@ import {
   NORWAY_ZOOM,
   MIN_ZOOM,
   MAX_ZOOM,
+  ORS_API_KEY,
   type LayerInfo,
   type FeatureInfo,
 } from '@/constants/map-config';
@@ -34,7 +36,9 @@ import {
   scanForHighscoreData,
   searchPlaces,
   scanViewportFeatures,
+  fetchRoute,
   type PlaceResult,
+  type RouteResult,
 } from '@/utils/map-api';
 
 // Minimal empty style for "no basemap" (avoids empty/null mapStyle)
@@ -81,6 +85,9 @@ export default function HomeScreen() {
   const [featureListLoading, setFeatureListLoading] = useState(false);
   const [featureListFeatures, setFeatureListFeatures] = useState<FeatureInfo[]>([]);
   const [searchVisible, setSearchVisible] = useState(false);
+  const [routePlannerVisible, setRoutePlannerVisible] = useState(false);
+  const [routeGeojson, setRouteGeojson] = useState<any>(null);
+  const [myLocation, setMyLocation] = useState<[number, number] | null>(null);
 
   // ── GPS loading ──────────────────────────────────────────────────────────
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -223,6 +230,7 @@ export default function HomeScreen() {
         accuracy: Location.Accuracy.High,
       });
 
+      setMyLocation([pos.coords.longitude, pos.coords.latitude]);
       animateTo([pos.coords.longitude, pos.coords.latitude], 14);
     } catch (err: any) {
       const msg =
@@ -312,6 +320,53 @@ export default function HomeScreen() {
     [animateTo],
   );
 
+  // ── Route planner handlers ───────────────────────────────────────────────
+  const handleFetchRoute = useCallback(
+    async (from: [number, number], to: [number, number]): Promise<RouteResult> => {
+      if (!ORS_API_KEY) {
+        showToast('API-nøkkel for ruteplanlegger mangler.', 'error');
+        throw new Error('API-nøkkel mangler.');
+      }
+      return fetchRoute(from, to, ORS_API_KEY);
+    },
+    [],
+  );
+
+  const handleShowRoute = useCallback(
+    (geojson: any, from: [number, number], to: [number, number]) => {
+      setRouteGeojson(geojson);
+    },
+    [],
+  );
+
+  const handleClearRoute = useCallback(() => {
+    setRouteGeojson(null);
+  }, []);
+
+  const handleRequestMyLocation = useCallback(async () => {
+    // Triggers the same GPS flow as handleGPS
+    if (isWeb) {
+      showToast('GPS fungerer kun på mobil.', 'info');
+      return;
+    }
+    setGpsLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('Posisjonstilgang nektet.', 'error');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      setMyLocation([pos.coords.longitude, pos.coords.latitude]);
+    } catch {
+      showToast('Kunne ikke hente posisjon.', 'error');
+    } finally {
+      setGpsLoading(false);
+    }
+  }, [isWeb]);
+
   // ── Web fallback ────────────────────────────────────────────────────────
   if (isWeb) {
     return <View style={styles.webFallback}><ToastOverlay /></View>;
@@ -344,6 +399,33 @@ export default function HomeScreen() {
           >
             <Layer id="geonorge-wms-layer" type="raster" />
           </RasterSource>
+
+          {/* Route line layer */}
+          {routeGeojson && (
+            <GeoJSONSource
+              id="route-source"
+              data={routeGeojson}
+            >
+              <Layer
+                id="route-line-outline"
+                type="line"
+                style={{
+                  lineColor: '#0d1117',
+                  lineWidth: 7,
+                  lineOpacity: 0.4,
+                } as LineLayerStyle}
+              />
+              <Layer
+                id="route-line"
+                type="line"
+                style={{
+                  lineColor: '#ecaa30',
+                  lineWidth: 4,
+                  lineOpacity: 0.85,
+                } as LineLayerStyle}
+              />
+            </GeoJSONSource>
+          )}
         </Map>
       </View>
 
@@ -359,6 +441,7 @@ export default function HomeScreen() {
             onOpenSettings={() => setSettingsVisible(true)}
             onOpenFeatureList={handleOpenFeatureList}
             onOpenSearch={() => setSearchVisible(true)}
+            onOpenRoutePlanner={() => setRoutePlannerVisible(true)}
             gpsLoading={gpsLoading}
           />
           <MapStatusBar zoom={zoom} layerCount={activeLayers.size} />
@@ -399,6 +482,20 @@ export default function HomeScreen() {
         onClose={() => setSearchVisible(false)}
         onSearchPlace={handleSearchPlace}
         onSelectPlace={handleSelectPlace}
+      />
+
+      <RoutePlannerModal
+        visible={routePlannerVisible}
+        onClose={() => {
+          setRoutePlannerVisible(false);
+          handleClearRoute();
+        }}
+        onSearchPlace={handleSearchPlace}
+        myLocation={myLocation}
+        onRequestMyLocation={handleRequestMyLocation}
+        onFetchRoute={handleFetchRoute}
+        onShowRoute={handleShowRoute}
+        onClearRoute={handleClearRoute}
       />
 
       <HighscoreModal

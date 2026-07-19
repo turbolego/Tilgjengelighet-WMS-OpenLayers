@@ -18,6 +18,7 @@ import {
   HIGHSCORE_GRID_SIZE,
   HIGHSCORE_FEATURE_COUNT,
   HIGHSCORE_BATCH_SIZE,
+  ORS_API_URL,
   type FeatureInfo,
 } from '@/constants/map-config';
 
@@ -255,4 +256,55 @@ export async function searchPlaces(query: string): Promise<PlaceResult[]> {
       lon: p.representasjonspunkt.øst,
     }),
   );
+}
+
+// ── Route planning (OpenRouteService) ──────────────────────────────────
+
+export interface RouteResult {
+  /** GeoJSON FeatureCollection with LineString geometry */
+  geojson: any;
+  /** Distance in meters */
+  distance: number;
+  /** Duration in seconds */
+  duration: number;
+  /** Human-readable distance (e.g. "1.2 km") */
+  distanceLabel: string;
+  /** Human-readable duration (e.g. "18 min") */
+  durationLabel: string;
+}
+
+export async function fetchRoute(
+  from: [number, number], // [lng, lat]
+  to: [number, number],   // [lng, lat]
+  apiKey: string,
+): Promise<RouteResult> {
+  const coords = `${from[0]},${from[1]}|${to[0]},${to[1]}`;
+  const url =
+    `${ORS_API_URL}/v2/directions/wheelchair/geojson` +
+    `?api_key=${encodeURIComponent(apiKey)}` +
+    `&start=${encodeURIComponent(coords)}`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Route API error: HTTP ${res.status}`);
+
+  const geojson = await res.json();
+  const props = geojson.features?.[0]?.properties?.summary;
+  const distance: number = props?.distance ?? 0;
+  const duration: number = props?.duration ?? 0;
+
+  return {
+    geojson,
+    distance,
+    duration,
+    distanceLabel:
+      distance >= 1000
+        ? `${(distance / 1000).toFixed(1)} km`
+        : `${Math.round(distance)} m`,
+    durationLabel:
+      duration >= 3600
+        ? `${Math.floor(duration / 3600)} t ${Math.round(
+            (duration % 3600) / 60,
+          )} min`
+        : `${Math.round(duration / 60)} min`,
+  };
 }
