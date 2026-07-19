@@ -51,6 +51,10 @@ jobs:
         run: npx expo prebuild --platform android --clean
         working-directory: mobile
 
+      - name: Generate build version
+        working-directory: mobile
+        run: node scripts/gen-version.js
+
       - name: Build Android APK
         run: cd mobile/android && ./gradlew assembleRelease
         env:
