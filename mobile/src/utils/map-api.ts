@@ -18,8 +18,13 @@ import {
   HIGHSCORE_GRID_SIZE,
   HIGHSCORE_FEATURE_COUNT,
   HIGHSCORE_BATCH_SIZE,
+  ACCESSIBILITY_LAYER,
+  ACCESSIBILITY_FEATURE_COUNT,
+  ACCESSIBILITY_SAMPLE_INTERVAL_M,
+  ROUTE_GRAPH_COVERAGE,
   type FeatureInfo,
 } from '@/constants/map-config';
+import { computeRoute } from './graph-utils';
 
 export { esc, parseCapabilities, parseFeatureInfoText, parseGMLFeatureInfo, filterFullyAccessible };
 
@@ -277,4 +282,159 @@ export async function searchPlaces(query: string): Promise<PlaceResult[]> {
       lon: p.representasjonspunkt.øst,
     }),
   );
+}
+
+// ── Route planning (local graph + WMS accessibility overlay) ────────────
+// Uses a pre-built routing graph from Geonorge WFS (TettstedVei + FriluftTurvei),
+// bundled as a JSON asset. Dijkstra's algorithm runs in pure TypeScript — zero network calls.
+// After routing, we sample WMS GetFeatureInfo on the t_vei_r layer
+// to assess wheelchair accessibility along the path.
+
+
+
+export interface RouteAccessibilitySample {
+  range: [number, number];  // [startM, endM] along the route
+  score: 0 | 1 | 2 | 3;    // 0=no data, 1=not accessible, 2=partial, 3=full
+  label: string;
+}
+
+export interface RouteResult {
+  geojson: any;
+  distance: number;
+  duration: number;
+  distanceLabel: string;
+  durationLabel: string;
+  segments: RouteAccessibilitySample[];
+  accessiblePct: number;
+}
+
+function scoreAccessibility(props: Map<string, string>): 0 | 1 | 2 | 3 {
+  const r1 = props.get('tilgjengvurderingrulleman') ?? '';
+  const r2 = props.get('tilgjengvurderingrulleauto') ?? '';
+  const r3 = props.get('tilgjengvurderingelrull') ?? '';
+  const r4 = props.get('tilgjengvurderingsyn') ?? '';
+  if (!r1 && !r2 && !r3 && !r4) return 0;
+  const count =
+    (r1 === 'Tilgjengelig' ? 1 : 0) +
+    (r2 === 'Tilgjengelig' ? 1 : 0) +
+    (r3 === 'Tilgjengelig' ? 1 : 0) +
+    (r4 === 'Tilgjengelig' ? 1 : 0);
+  if (count === 4) return 3;
+  if (count > 0) return 2;
+  return 1;
+}
+
+async function sampleAccessibilityAt(
+  lng: number, lat: number,
+): Promise<{ score: 0 | 1 | 2 | 3; label: string }> {
+  const boxMeters = 150; // ~150m box
+  const [mx, my] = lonLatToMercator(lng, lat);
+  const bbox = `${mx - boxMeters},${my - boxMeters},${mx + boxMeters},${my + boxMeters}`;
+  const params = new URLSearchParams({
+    REQUEST: 'GetFeatureInfo', SERVICE: 'WMS', VERSION: '1.3.0',
+    LAYERS: ACCESSIBILITY_LAYER, QUERY_LAYERS: ACCESSIBILITY_LAYER,
+    INFO_FORMAT: 'text/plain', FEATURE_COUNT: String(ACCESSIBILITY_FEATURE_COUNT),
+    I: '1', J: '1', WIDTH: '3', HEIGHT: '3',
+    CRS: 'EPSG:3857', BBOX: bbox, language: 'Norwegian',
+  });
+  try {
+    const res = await fetch(`${WMS_URL}?${params.toString()}`);
+    if (!res.ok) return { score: 0, label: 'Ingen data' };
+    const features = parseFeatureInfoText(await res.text());
+    let best: 0 | 1 | 2 | 3 = 0;
+    for (const f of features) { const s = scoreAccessibility(f.props); if (s > best) best = s; }
+    return { score: best, label: best === 3 ? 'Tilgjengelig' : best === 2 ? 'Delvis tilgjengelig' : best === 1 ? 'Ikke tilgjengelig' : 'Ingen data' };
+  } catch { return { score: 0, label: 'Ingen data' }; }
+}
+
+export async function fetchRoute(
+  from: [number, number],
+  to: [number, number],
+): Promise<RouteResult> {
+  // ── 1. Local graph route (pure Dijkstra, zero network) ─────────────
+  const [fromLon, fromLat] = from;
+  const [toLon, toLat] = to;
+
+  // Check coverage
+  if (
+    fromLat < ROUTE_GRAPH_COVERAGE.minLat || fromLat > ROUTE_GRAPH_COVERAGE.maxLat ||
+    fromLon < ROUTE_GRAPH_COVERAGE.minLon || fromLon > ROUTE_GRAPH_COVERAGE.maxLon ||
+    toLat < ROUTE_GRAPH_COVERAGE.minLat || toLat > ROUTE_GRAPH_COVERAGE.maxLat ||
+    toLon < ROUTE_GRAPH_COVERAGE.minLon || toLon > ROUTE_GRAPH_COVERAGE.maxLon
+  ) {
+    throw new Error(
+      'Ruteplanleggeren har kartdata for hele fastlands-Norge. ' +
+      `Velg punkter innenfor (${ROUTE_GRAPH_COVERAGE.minLon}–${ROUTE_GRAPH_COVERAGE.maxLon}° Ø, ${ROUTE_GRAPH_COVERAGE.minLat}–${ROUTE_GRAPH_COVERAGE.maxLat}° N).`,
+    );
+  }
+
+  const route = await computeRoute(fromLat, fromLon, toLat, toLon);
+  if (!route) {
+    throw new Error('Kunne ikke finne en rute mellom disse punktene.');
+  }
+
+  const geometry = {
+    type: 'LineString' as const,
+    coordinates: route.coordinates,
+  };
+
+  const duration = route.duration;
+
+  const geojson = {
+    type: 'FeatureCollection' as const,
+    features: [{ type: 'Feature' as const, properties: {}, geometry }],
+  };
+
+  // ── 2. Sample accessibility along route ───────────────────────────
+  const coords: [number, number][] = geometry.coordinates;
+  const samplePts: { m: number; lng: number; lat: number }[] = [];
+  // Track true physical distance (haversine) separately from weighted cost
+  let totalMeters = 0;
+  if (coords.length >= 2) {
+    let acc = 0; let prev: [number, number] = coords[0];
+    samplePts.push({ m: 0, lng: prev[0], lat: prev[1] });
+    for (let i = 1; i < coords.length; i++) {
+      const [lng1, lat1] = prev; const [lng2, lat2] = coords[i]; prev = coords[i];
+      const dLat = (lat2 - lat1) * Math.PI / 180; const dLng = (lng2 - lng1) * Math.PI / 180;
+      const seg = 6371000 * 2 * Math.atan2(
+        Math.sqrt(Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2),
+        Math.sqrt(1 - (Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2)),
+      );
+      acc += seg;
+      totalMeters += seg;
+      if (acc >= ACCESSIBILITY_SAMPLE_INTERVAL_M) { samplePts.push({ m: totalMeters, lng: lng2, lat: lat2 }); acc = 0; }
+    }
+    const last = coords[coords.length - 1];
+    samplePts.push({ m: totalMeters, lng: last[0], lat: last[1] });
+  }
+
+  const samples: { m: number; score: 0 | 1 | 2 | 3; label: string }[] = [];
+  for (let i = 0; i < samplePts.length; i += 10) {
+    const results = await Promise.allSettled(samplePts.slice(i, i + 10).map(p => sampleAccessibilityAt(p.lng, p.lat)));
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j];
+      samples.push({
+        m: samplePts[i + j].m,
+        ...(r.status === 'fulfilled' ? r.value : { score: 0 as const, label: 'Ingen data' }),
+      });
+    }
+  }
+
+  // ── 3. Build segments ─────────────────────────────────────────────
+  const segments: RouteAccessibilitySample[] = [];
+  let accessibleMeters = 0; let totalSampled = 0;
+  for (let i = 0; i < samples.length - 1; i++) {
+    const segM = samples[i + 1].m - samples[i].m;
+    totalSampled += segM;
+    if (samples[i].score === 3) accessibleMeters += segM;
+    segments.push({ range: [samples[i].m, samples[i + 1].m], score: samples[i].score, label: samples[i].label });
+  }
+
+  return {
+    geojson, distance: Math.round(totalMeters), duration,
+    distanceLabel: totalMeters >= 1000 ? `${(totalMeters / 1000).toFixed(1)} km` : `${Math.round(totalMeters)} m`,
+    durationLabel: duration >= 3600 ? `${Math.floor(duration / 3600)} t ${Math.round((duration % 3600) / 60)} min` : `${Math.round(duration / 60)} min`,
+    segments,
+    accessiblePct: totalSampled > 0 ? Math.round((accessibleMeters / totalSampled) * 100) : 0,
+  };
 }

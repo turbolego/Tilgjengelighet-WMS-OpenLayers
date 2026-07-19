@@ -11,6 +11,7 @@ export interface ActionBarProps {
   onOpenSettings: () => void;
   onOpenFeatureList: () => void;
   onOpenSearch: () => void;
+  onOpenRoutePlanner: () => void;
   gpsLoading?: boolean;
 }
 
@@ -26,6 +27,7 @@ export function ActionBar({
   onOpenSettings,
   onOpenFeatureList,
   onOpenSearch,
+  onOpenRoutePlanner,
   gpsLoading = false,
 }: ActionBarProps) {
   return (
@@ -44,6 +46,7 @@ export function ActionBar({
       <MapButton label="📋" a11yLabel="Vis objekter i kartet" onPress={onOpenFeatureList} />
       <View style={styles.divider} />
       <MapButton label="🔎" a11yLabel="Søk stedsnavn" onPress={onOpenSearch} />
+      <MapButton label="🧭" a11yLabel="Ruteplanlegger" onPress={onOpenRoutePlanner} />
       <MapButton label="⚙" a11yLabel="Innstillinger" onPress={onOpenSettings} accent />
     </View>
   );

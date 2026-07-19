@@ -1,0 +1,96 @@
+name: Graph Rebuild
+
+# Daily check: detect WFS data changes, re-extract routing graph, rebuild release.
+# Runs on schedule AND on manual trigger.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # Daily at 06:00 UTC
+  workflow_dispatch:       # Manual trigger
+
+permissions:
+  contents: write         # For committing graph updates
+  actions: write          # For triggering release workflow
+
+jobs:
+  check-and-rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Fetch WFS sample and compute stable hash
+        id: hash
+        run: |
+          python3 scripts/hash-wfs.py | tee /tmp/current-hash.txt
+          echo "current_hash=$(cat /tmp/current-hash.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Read stored hash from manifest
+        id: stored
+        run: |
+          MANIFEST="mobile/assets/norge-routing-graph-manifest.json"
+          if [ -f "$MANIFEST" ]; then
+            STORED=$(python3 -c "import json,sys; d=json.load(open('$MANIFEST')); print(d.get('dataHash',''))")
+            echo "stored_hash=$STORED" >> "$GITHUB_OUTPUT"
+            echo "Stored hash: $STORED"
+          else
+            echo "stored_hash=" >> "$GITHUB_OUTPUT"
+            echo "No stored hash (first run)"
+          fi
+
+      - name: Check if re-extraction needed
+        id: check
+        run: |
+          CURRENT="${{ steps.hash.outputs.current_hash }}"
+          STORED="${{ steps.stored.outputs.stored_hash }}"
+          if [ -z "$CURRENT" ]; then
+            echo "ERROR: Could not compute current hash"
+            exit 1
+          fi
+          if [ "$CURRENT" = "$STORED" ] && [ -n "$STORED" ]; then
+            echo "No changes detected — graph is up to date."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "WFS data has changed (or first extraction). Rebuilding graph..."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Re-extract routing graph
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          python3 scripts/extract-graph.py mobile/assets/norge-routing-graph.dat
+          ls -lh mobile/assets/norge-routing-graph.dat
+
+      - name: Commit updated graph
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name "graph-bot[bot]"
+          git config user.email "graph-bot[bot]@users.noreply.github.com"
+          git add mobile/assets/norge-routing-graph.dat mobile/assets/norge-routing-graph-manifest.json
+          git diff --staged --stat
+          git commit -m "chore: auto-rebuild routing graph [skip ci]" || echo "No changes to commit"
+          git push origin HEAD:main
+
+      - name: Trigger release build
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release.yml',
+              ref: 'main',
+              inputs: {
+                platform: 'android',
+                prerelease: 'false',
+              },
+            });
+            console.log('Triggered release workflow');
