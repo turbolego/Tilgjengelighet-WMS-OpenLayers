@@ -31,7 +31,6 @@ on:
 
 permissions:
   contents: write
-  actions: read
 
 jobs:
   # ── Build Android APK ─────────────────────────────────────────────
@@ -164,15 +163,6 @@ jobs:
           name: android-apk-release
           path: artifacts/android
 
-      - name: Download AAB artifact (from AAB workflow)
-        uses: dawidd6/action-download-artifact@v3
-        with:
-          workflow: release-aab.yml
-          commit: ${{ github.sha }}
-          name: android-aab-release
-          path: artifacts/android
-          if_no_artifact_found: warn
-
       - name: Download iOS artifacts
         if: ${{ needs.ios.result == 'success' }}
         uses: actions/download-artifact@v7
@@ -188,33 +178,13 @@ jobs:
           find artifacts/ios -type f -ls 2>/dev/null || echo "(none)"
 
       - name: Generate release notes
-        id: notes
+        working-directory: ${{ github.workspace }}
         run: |
-          {
-            echo "## 📱 Geonorge Tilgjengelighet — APK-utgivelse v${{ steps.tag.outputs.tag }}"
-            echo ""
-            echo "| Platform | File | Description |"
-            echo "|----------|------|-------------|"
-            find artifacts -type f | while read f; do
-              fname=$(basename "$f")
-              platform=$(echo "$f" | grep -q android && echo "Android" || echo "iOS")
-              ext="${fname##*.}"
-              desc=""
-              case "$ext" in
-                aab) desc="Play Store-bundle (fra AAB-workflow)" ;;
-                apk) desc="Direkte installasjon" ;;
-                *) desc="App" ;;
-              esac
-              echo "| $platform | $fname | $desc |"
-            done
-            echo ""
-            echo "### Installasjon"
-            echo "- **Android**: Last ned APK-filen og installer direkte på enheten"
-            echo "- **AAB**: Lastes ned separat som artefakt fra AAB-workflowen"
-            echo "- **iOS**: Krever Mac med Xcode for å installere på simulator eller enhet"
-            echo ""
-            echo "> Bygget fra commit \`$(git rev-parse --short HEAD)\`"
-          } > release-notes.md
+          python3 .github/scripts/gen-release-notes.py \
+            "${{ steps.tag.outputs.tag }}" \
+            "${{ github.sha }}" \
+            artifacts \
+            > release-notes.md
           cat release-notes.md
 
       - name: Create Release
