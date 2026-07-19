@@ -63,9 +63,9 @@ export async function loadRouteGraph(): Promise<RoutingGraph | null> {
 
   _loadPromise = (async () => {
     try {
-      // Load as a runtime asset (prevents Metro from inlining 14MB into JS bundle)
+      // Load as a runtime asset (prevents Metro from inlining into JS bundle)
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const [asset] = await Asset.loadAsync(require('../../assets/oslo-routing-graph.dat'));
+      const [asset] = await Asset.loadAsync(require('../../assets/norge-routing-graph.dat'));
       if (!asset.localUri) throw new Error('Asset has no local URI');
       const response = await fetch(asset.localUri);
       const d: RawGraph = await response.json();

@@ -247,12 +247,11 @@ export function RoutePlannerModal({
           <View style={styles.info}>
             <Text style={styles.infoText}>
               Ruteberegning kjøres på enheten din (klientbasert Dijkstra).
-              Kartgrunnlag: OpenStreetMap-data for Oslo-området.
+              Kartgrunnlag: Geonorge WFS (TettstedVei + FriluftTurvei).
               Tilgjengelighetsvurdering fra kommunens kartdata (t_vei_r).
             </Text>
             <Text style={styles.infoSub}>
-              Dekker Oslo med omegn (10.36–11.11° Ø, 59.73–60.09° N).
-              Flere byer kan legges til senere.
+              Dekker hele fastlands-Norge (4.7–31.1° Ø, 58.0–71.2° N).
             </Text>
           </View>
         </ScrollView>

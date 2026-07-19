@@ -24,13 +24,14 @@ export const HIGHSCORE_FEATURE_COUNT = 200;
 export const HIGHSCORE_BATCH_SIZE = 8;
 
 // ── Graph coverage ─────────────────────────────────────────────────────
-// The client-side routing graph covers Oslo and surrounding areas.
+// The client-side routing graph covers all of mainland Norway (TettstedVei
+// + FriluftTurvei from Geonorge WFS tilgjengelighet).
 // Coverage bounds (decimal degrees):
 export const ROUTE_GRAPH_COVERAGE = {
-  minLat: 59.728,
-  maxLat: 60.090,
-  minLon: 10.358,
-  maxLon: 11.116,
+  minLat: 58.0168,
+  maxLat: 71.1710,
+  minLon: 4.7068,
+  maxLon: 31.105,
 };
 
 // ── Accessibility assessment layer ─────────────────────────────────────
