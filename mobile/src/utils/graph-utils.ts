@@ -132,9 +132,12 @@ export function findNearestNode(
 export interface RoutePath {
   /** Path coordinates as [lng, lat][] pairs (GeoJSON-friendly) */
   coordinates: [number, number][];
-  /** Total distance in meters */
+  /**
+   * Route cost — weighted distance (physical meters × accessibility factor 1.0–2.0).
+   * For the true physical distance in meters, recompute via haversine along coordinates.
+   */
   distance: number;
-  /** Estimated walking duration in seconds (at 1.3 m/s) */
+  /** Estimated walking duration in seconds (at 1.3 m/s) based on physical distance */
   duration: number;
 }
 
@@ -255,10 +258,16 @@ export async function computeRoute(
     coordinates.push([node.lon, node.lat] as [number, number]);
   }
 
+  // Compute true physical distance along the path (haversine)
+  let physDist = 0;
+  for (let i = 1; i < coordinates.length; i++) {
+    physDist += haversine(coordinates[i-1][1], coordinates[i-1][0], coordinates[i][1], coordinates[i][0]);
+  }
+
   return {
     coordinates,
     distance: dist[end],
-    duration: dist[end] / 1.3,
+    duration: physDist / 1.3,
   };
 }
 

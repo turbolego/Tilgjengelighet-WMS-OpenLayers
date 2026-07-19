@@ -285,8 +285,8 @@ export async function searchPlaces(query: string): Promise<PlaceResult[]> {
 }
 
 // ── Route planning (local graph + WMS accessibility overlay) ────────────
-// Uses a pre-built OSM road graph bundled as a JSON asset.
-// Dijkstra's algorithm runs in pure TypeScript — zero network calls.
+// Uses a pre-built routing graph from Geonorge WFS (TettstedVei + FriluftTurvei),
+// bundled as a JSON asset. Dijkstra's algorithm runs in pure TypeScript — zero network calls.
 // After routing, we sample WMS GetFeatureInfo on the t_vei_r layer
 // to assess wheelchair accessibility along the path.
 
@@ -327,14 +327,15 @@ function scoreAccessibility(props: Map<string, string>): 0 | 1 | 2 | 3 {
 async function sampleAccessibilityAt(
   lng: number, lat: number,
 ): Promise<{ score: 0 | 1 | 2 | 3; label: string }> {
-  const bboxSize = 0.002; // ~200m at 60°N
-  const bbox = `${lng - bboxSize},${lat - bboxSize},${lng + bboxSize},${lat + bboxSize}`;
+  const boxMeters = 150; // ~150m box
+  const [mx, my] = lonLatToMercator(lng, lat);
+  const bbox = `${mx - boxMeters},${my - boxMeters},${mx + boxMeters},${my + boxMeters}`;
   const params = new URLSearchParams({
     REQUEST: 'GetFeatureInfo', SERVICE: 'WMS', VERSION: '1.3.0',
     LAYERS: ACCESSIBILITY_LAYER, QUERY_LAYERS: ACCESSIBILITY_LAYER,
     INFO_FORMAT: 'text/plain', FEATURE_COUNT: String(ACCESSIBILITY_FEATURE_COUNT),
     I: '1', J: '1', WIDTH: '3', HEIGHT: '3',
-    CRS: 'EPSG:4326', BBOX: bbox, language: 'Norwegian',
+    CRS: 'EPSG:3857', BBOX: bbox, language: 'Norwegian',
   });
   try {
     const res = await fetch(`${WMS_URL}?${params.toString()}`);
@@ -362,8 +363,8 @@ export async function fetchRoute(
     toLon < ROUTE_GRAPH_COVERAGE.minLon || toLon > ROUTE_GRAPH_COVERAGE.maxLon
   ) {
     throw new Error(
-      'Ruteplanleggeren har kun kartdata for Oslo-området. ' +
-      'Velg punkter innenfor Oslo (10.36–11.11° Ø, 59.73–60.09° N).',
+      'Ruteplanleggeren har kartdata for hele fastlands-Norge. ' +
+      `Velg punkter innenfor (${ROUTE_GRAPH_COVERAGE.minLon}–${ROUTE_GRAPH_COVERAGE.maxLon}° Ø, ${ROUTE_GRAPH_COVERAGE.minLat}–${ROUTE_GRAPH_COVERAGE.maxLat}° N).`,
     );
   }
 
@@ -388,6 +389,8 @@ export async function fetchRoute(
   // ── 2. Sample accessibility along route ───────────────────────────
   const coords: [number, number][] = geometry.coordinates;
   const samplePts: { m: number; lng: number; lat: number }[] = [];
+  // Track true physical distance (haversine) separately from weighted cost
+  let totalMeters = 0;
   if (coords.length >= 2) {
     let acc = 0; let prev: [number, number] = coords[0];
     samplePts.push({ m: 0, lng: prev[0], lat: prev[1] });
@@ -399,10 +402,11 @@ export async function fetchRoute(
         Math.sqrt(1 - (Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2)),
       );
       acc += seg;
-      if (acc >= ACCESSIBILITY_SAMPLE_INTERVAL_M) { samplePts.push({ m: acc, lng: lng2, lat: lat2 }); acc = 0; }
+      totalMeters += seg;
+      if (acc >= ACCESSIBILITY_SAMPLE_INTERVAL_M) { samplePts.push({ m: totalMeters, lng: lng2, lat: lat2 }); acc = 0; }
     }
     const last = coords[coords.length - 1];
-    samplePts.push({ m: distance, lng: last[0], lat: last[1] });
+    samplePts.push({ m: totalMeters, lng: last[0], lat: last[1] });
   }
 
   const samples: { m: number; score: 0 | 1 | 2 | 3; label: string }[] = [];
@@ -428,8 +432,8 @@ export async function fetchRoute(
   }
 
   return {
-    geojson, distance, duration,
-    distanceLabel: distance >= 1000 ? `${(distance / 1000).toFixed(1)} km` : `${Math.round(distance)} m`,
+    geojson, distance: Math.round(totalMeters), duration,
+    distanceLabel: totalMeters >= 1000 ? `${(totalMeters / 1000).toFixed(1)} km` : `${Math.round(totalMeters)} m`,
     durationLabel: duration >= 3600 ? `${Math.floor(duration / 3600)} t ${Math.round((duration % 3600) / 60)} min` : `${Math.round(duration / 60)} min`,
     segments,
     accessiblePct: totalSampled > 0 ? Math.round((accessibleMeters / totalSampled) * 100) : 0,

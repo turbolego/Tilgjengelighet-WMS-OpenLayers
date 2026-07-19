@@ -177,7 +177,8 @@ def download_features(type_name, count_hint=0):
     print(f'\n── Downloading {type_name} ──')
     while True:
         url = (f'{WFS_URL}?service=WFS&request=GetFeature&version=2.0.0'
-               f'&typeNames={type_name}&count={CHUNK_SIZE}&startIndex={offset}')
+               f'&typeNames={type_name}&count={CHUNK_SIZE}&startIndex={offset}'
+               f'&srsName=EPSG:4258')
         try:
             import urllib.request
             req = urllib.request.urlopen(url, timeout=120)
@@ -381,8 +382,9 @@ def build_graph(all_segments):
     print(f'  Edges: {len(all_edges):,}')
 
     # ── Phase 5: compact export ──
-    node_lats_int = [round(v[1] * 10000) for v in node_to_coord]  # lat
-    node_lons_int = [round(v[0] * 10000) for v in node_to_coord]  # lon
+    # node_to_coord stores (lat, lon) from parse_poslist — v[0]=lat, v[1]=lon
+    node_lats_int = [round(v[0] * 10000) for v in node_to_coord]
+    node_lons_int = [round(v[1] * 10000) for v in node_to_coord]
 
     flat_edges = []
     for u, v, w, d in all_edges:

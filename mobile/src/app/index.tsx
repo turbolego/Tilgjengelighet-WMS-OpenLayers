@@ -248,8 +248,8 @@ export default function HomeScreen() {
     setRoutePlannerVisible(true);
   }, []);
 
-  const handleRouteResult = useCallback((result: RouteResult) => {
-    setRouteGeojson(result.geojson);
+  const handleRouteResult = useCallback((result: RouteResult | null) => {
+    setRouteGeojson(result?.geojson ?? null);
   }, []);
 
   const handleClearRoute = useCallback(() => {
@@ -364,7 +364,7 @@ export default function HomeScreen() {
             <Layer id="geonorge-wms-layer" type="raster" />
           </RasterSource>
 
-          {/* Route overlay (OSRM walking route + accessibility overlay) */}
+          {/* Route overlay (local Dijkstra + accessibility overlay) */}
           {routeGeojson && (
             <GeoJSONSource
               id="route-source"

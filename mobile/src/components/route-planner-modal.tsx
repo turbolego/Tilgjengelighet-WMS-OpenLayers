@@ -16,7 +16,7 @@ interface RoutePlannerModalProps {
   visible: boolean;
   onClose: () => void;
   myLocation: [number, number] | null;
-  onRouteResult: (result: RouteResult) => void;
+  onRouteResult: (result: RouteResult | null) => void;
 }
 
 export function RoutePlannerModal({
@@ -67,7 +67,8 @@ export function RoutePlannerModal({
   const handleClearRoute = useCallback(() => {
     setRouteResult(null);
     setError('');
-  }, []);
+    onRouteResult(null);
+  }, [onRouteResult]);
 
   const handleClose = useCallback(() => {
     setRouteResult(null);
