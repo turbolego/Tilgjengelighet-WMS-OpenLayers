@@ -224,23 +224,32 @@ test.describe('Modal UI Components', () => {
       // Assert title
       await expect(dialog.getByText(/test.*stedsinfo/i)).toBeVisible();
 
-      // Assert first feature's data is displayed
-      // Use .first() since the feature name appears in both picker chip and table
+      // Multiple features returned — picker is shown first
       await expect(dialog.getByText(/turvei - grusdekke/i).first()).toBeVisible();
+
+      // Tap the first picker row to see its detail
+      await dialog.getByText(/turvei - grusdekke/i).first().click();
+
+      // Assert first feature's property data
       await expect(dialog.getByText(/bredde/i)).toBeVisible();
       await expect(dialog.getByText(/200 cm/i)).toBeVisible();
       await expect(dialog.getByText(/stigning/i)).toBeVisible();
     });
 
-    test('feature picker shows single feature detail', async ({ page }) => {
+    test('feature picker lets user select a feature to see detail', async ({ page }) => {
       await page.getByRole('button', { name: /åpne stedsinfo/i }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
 
-      // First feature's data should be visible directly (no picker chips)
-      await expect(dialog.getByText(/turvei - grusdekke/i).first()).toBeVisible();
-      await expect(dialog.getByText(/bredde/i)).toBeVisible();
-      await expect(dialog.getByText(/200 cm/i)).toBeVisible();
+      // Picker is shown — second feature label should be findable via text
+      await expect(dialog.getByText(/turvei - grusdekke/i)).toBeVisible();
+
+      // Click by finding text anywhere in row — back-to-back picker rows
+      // getByText works with \n in react-native-web Text elements
+      await dialog.getByText(/gang/i).click();
+
+      // The second feature's property data should now be visible
+      await expect(dialog.getByText(/300 cm/i)).toBeVisible();
       await expect(dialog.getByText(/stigning/i)).toBeVisible();
     });
 

@@ -157,6 +157,10 @@ export function FeaturePopup({
   const meaningful = features.filter((f) => f.props.size > 0);
   const selected = selectedIdx != null ? meaningful[selectedIdx] : null;
 
+  // Auto-select when there's only one meaningful feature (go straight to detail)
+  const autoSelected = meaningful.length === 1 ? meaningful[0] : null;
+  const displayFeature = selected ?? autoSelected;
+
   return (
     <Modal
       visible={visible}
@@ -178,13 +182,13 @@ export function FeaturePopup({
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title} numberOfLines={1}>
-            {selected
+            {displayFeature
               ? title ?? 'Stedsinfo'
               : title ?? 'Stedsinfo — velg objekt'}
           </Text>
           <Pressable
             onPress={() => {
-              if (selected) {
+              if (displayFeature) {
                 setSelectedIdx(null); // back to picker
               } else {
                 onClose();
@@ -216,13 +220,13 @@ export function FeaturePopup({
         )}
 
         {/* Picker or detail */}
-        {!loading && meaningful.length > 0 && !selected && (
+        {!loading && meaningful.length > 0 && !displayFeature && (
           <FeaturePicker
             features={meaningful}
             onSelect={(_f, idx) => setSelectedIdx(idx)}
           />
         )}
-        {!loading && selected && <FeatureDetail feature={selected} />}
+        {!loading && displayFeature && <FeatureDetail feature={displayFeature} />}
       </View>
     </Modal>
   );
