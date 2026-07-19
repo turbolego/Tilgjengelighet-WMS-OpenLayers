@@ -5,11 +5,13 @@ import { MapColors } from '@/constants/map-theme';
 export interface StatusBarProps {
   zoom: number;
   layerCount: number;
+  safeAreaTop?: number;
+  safeAreaBottom?: number;
 }
 
-export function StatusBar({ zoom, layerCount }: StatusBarProps) {
+export function StatusBar({ zoom, layerCount, safeAreaTop = 0, safeAreaBottom = 0 }: StatusBarProps) {
   return (
-    <View style={styles.container} pointerEvents="none">
+    <View style={[styles.container, { bottom: 16 + safeAreaBottom }]} pointerEvents="none">
       <Text style={styles.text}>
         Zoom: {zoom} · Lag: {layerCount}
       </Text>
