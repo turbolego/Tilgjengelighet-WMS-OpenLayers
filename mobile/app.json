@@ -45,7 +45,8 @@
           "locationWhenInUsePermission": "Tillat $(PRODUCT_NAME) å bruke din posisjon for å vise din plassering på kartet.",
           "locationAlwaysPermission": "Tillat $(PRODUCT_NAME) å bruke din posisjon for å vise din plassering på kartet."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -23,13 +23,15 @@ export const HIGHSCORE_GRID_SIZE = 8;
 export const HIGHSCORE_FEATURE_COUNT = 200;
 export const HIGHSCORE_BATCH_SIZE = 8;
 
-// ── Routing (OSRM) ────────────────────────────────────────────────────
-// Uses the public OSRM demo server (no API key needed) with walking profile.
-// The walking profile uses pedestrian infrastructure (footways, sidewalks,
-// pedestrian streets) which is the closest free proxy for wheelchair routing.
-// For production, self-host OSRM and point this URL to your own instance:
-//   https://github.com/Project-OSRM/osrm-backend
-export const OSRM_API_URL = 'https://router.project-osrm.org';
+// ── Graph coverage ─────────────────────────────────────────────────────
+// The client-side routing graph covers Oslo and surrounding areas.
+// Coverage bounds (decimal degrees):
+export const ROUTE_GRAPH_COVERAGE = {
+  minLat: 59.728,
+  maxLat: 60.090,
+  minLon: 10.358,
+  maxLon: 11.116,
+};
 
 // ── Accessibility assessment layer ─────────────────────────────────────
 // The t_vei_r layer contains road segments with wheelchair accessibility

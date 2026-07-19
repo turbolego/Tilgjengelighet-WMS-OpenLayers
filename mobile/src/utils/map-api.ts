@@ -18,12 +18,13 @@ import {
   HIGHSCORE_GRID_SIZE,
   HIGHSCORE_FEATURE_COUNT,
   HIGHSCORE_BATCH_SIZE,
-  OSRM_API_URL,
   ACCESSIBILITY_LAYER,
   ACCESSIBILITY_FEATURE_COUNT,
   ACCESSIBILITY_SAMPLE_INTERVAL_M,
+  ROUTE_GRAPH_COVERAGE,
   type FeatureInfo,
 } from '@/constants/map-config';
+import { computeRoute } from './graph-utils';
 
 export { esc, parseCapabilities, parseFeatureInfoText, parseGMLFeatureInfo, filterFullyAccessible };
 
@@ -283,11 +284,13 @@ export async function searchPlaces(query: string): Promise<PlaceResult[]> {
   );
 }
 
-// ── Route planning (OSRM walking + WMS accessibility overlay) ──────────
-// OSRM walking profile uses pedestrian infrastructure (sidewalks, paths,
-// pedestrian streets) — the best free proxy for wheelchair routing.
-// No API key required. After getting the route, we sample WMS GetFeatureInfo
-// on the t_vei_r layer to assess wheelchair accessibility along the path.
+// ── Route planning (local graph + WMS accessibility overlay) ────────────
+// Uses a pre-built OSM road graph bundled as a JSON asset.
+// Dijkstra's algorithm runs in pure TypeScript — zero network calls.
+// After routing, we sample WMS GetFeatureInfo on the t_vei_r layer
+// to assess wheelchair accessibility along the path.
+
+
 
 export interface RouteAccessibilitySample {
   range: [number, number];  // [startM, endM] along the route
@@ -347,20 +350,40 @@ export async function fetchRoute(
   from: [number, number],
   to: [number, number],
 ): Promise<RouteResult> {
-  // ── 1. OSRM walking route (free, no key) ──────────────────────────
-  const osrmRes = await fetch(
-    `${OSRM_API_URL}/route/v1/walking/${from[0]},${from[1]};${to[0]},${to[1]}?overview=full&geometries=geojson`,
-  );
-  if (!osrmRes.ok) throw new Error(`Rutetjenesten svarte med HTTP ${osrmRes.status}`);
-  const osrmData = await osrmRes.json();
-  if (osrmData.code !== 'Ok' || !osrmData.routes?.length) {
-    throw new Error('Ingen rute funnet mellom disse punktene.');
+  // ── 1. Local graph route (pure Dijkstra, zero network) ─────────────
+  const [fromLon, fromLat] = from;
+  const [toLon, toLat] = to;
+
+  // Check coverage
+  if (
+    fromLat < ROUTE_GRAPH_COVERAGE.minLat || fromLat > ROUTE_GRAPH_COVERAGE.maxLat ||
+    fromLon < ROUTE_GRAPH_COVERAGE.minLon || fromLon > ROUTE_GRAPH_COVERAGE.maxLon ||
+    toLat < ROUTE_GRAPH_COVERAGE.minLat || toLat > ROUTE_GRAPH_COVERAGE.maxLat ||
+    toLon < ROUTE_GRAPH_COVERAGE.minLon || toLon > ROUTE_GRAPH_COVERAGE.maxLon
+  ) {
+    throw new Error(
+      'Ruteplanleggeren har kun kartdata for Oslo-området. ' +
+      'Velg punkter innenfor Oslo (10.36–11.11° Ø, 59.73–60.09° N).',
+    );
   }
-  const route = osrmData.routes[0];
-  const geometry = route.geometry;
-  const distance: number = route.distance ?? 0;
-  const duration: number = route.duration ?? 0;
-  const geojson = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry }] };
+
+  const route = await computeRoute(fromLat, fromLon, toLat, toLon);
+  if (!route) {
+    throw new Error('Kunne ikke finne en rute mellom disse punktene.');
+  }
+
+  const geometry = {
+    type: 'LineString' as const,
+    coordinates: route.coordinates,
+  };
+
+  const distance = route.distance;
+  const duration = route.duration;
+
+  const geojson = {
+    type: 'FeatureCollection' as const,
+    features: [{ type: 'Feature' as const, properties: {}, geometry }],
+  };
 
   // ── 2. Sample accessibility along route ───────────────────────────
   const coords: [number, number][] = geometry.coordinates;

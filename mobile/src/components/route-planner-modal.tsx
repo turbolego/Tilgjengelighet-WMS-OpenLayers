@@ -246,12 +246,13 @@ export function RoutePlannerModal({
           {/* Info */}
           <View style={styles.info}>
             <Text style={styles.infoText}>
-              Ruteberegning bruker gangnettverket (OSRM, åpen rutetjeneste).
+              Ruteberegning kjøres på enheten din (klientbasert Dijkstra).
+              Kartgrunnlag: OpenStreetMap-data for Oslo-området.
               Tilgjengelighetsvurdering fra kommunens kartdata (t_vei_r).
             </Text>
             <Text style={styles.infoSub}>
-              Produserer du mange ruter? Vurder å hoste OSRM selv:{'\n'}
-              github.com/Project-OSRM/osrm-backend
+              Dekker Oslo med omegn (10.36–11.11° Ø, 59.73–60.09° N).
+              Flere byer kan legges til senere.
             </Text>
           </View>
         </ScrollView>
