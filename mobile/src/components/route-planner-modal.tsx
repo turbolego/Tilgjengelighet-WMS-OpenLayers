@@ -197,6 +197,12 @@ export function RoutePlannerModal({
                   {routeResult.accessiblePct}% av ruten har full tilgjengelighetsvurdering
                 </Text>
               </View>
+              <View style={styles.resultRow}>
+                <Text style={styles.resultLabel}>Kartdata:</Text>
+                <Text style={styles.resultValue}>
+                  {routeResult.routeSource === 'wfs' ? 'Tilgjengelighet-kart' : 'OpenStreetMap'}
+                </Text>
+              </View>
 
               {/* Accessibility breakdown */}
               {routeResult.segments.length > 0 && (
@@ -250,7 +256,8 @@ export function RoutePlannerModal({
           <View style={styles.info}>
             <Text style={styles.infoText}>
               Ruteberegning kjøres på enheten din (klientbasert Dijkstra).
-              Kartgrunnlag: Geonorge WFS (TettstedVei + FriluftTurvei).
+              Kartgrunnlag: Geonorge WFS (TettstedVei + FriluftTurvei) med
+              OpenStreetMap som supplement for veier uten tilgjengelighetsvurdering.
               Tilgjengelighetsvurdering fra kommunens kartdata (t_vei_r).
             </Text>
             <Text style={styles.infoSub}>

@@ -24,7 +24,8 @@ import {
   ROUTE_GRAPH_COVERAGE,
   type FeatureInfo,
 } from '@/constants/map-config';
-import { computeRoute } from './graph-utils';
+import { computeRoute, findNearestNode, loadRouteGraph, type RoutePath } from './graph-utils';
+import { fetchOSMGraph, findNearestNodeOSM, routeOnOSM, haversine } from './osm-route';
 
 export { esc, parseCapabilities, parseFeatureInfoText, parseGMLFeatureInfo, filterFullyAccessible };
 
@@ -306,6 +307,7 @@ export interface RouteResult {
   durationLabel: string;
   segments: RouteAccessibilitySample[];
   accessiblePct: number;
+  routeSource: 'wfs' | 'osm';
 }
 
 function scoreAccessibility(props: Map<string, string>): 0 | 1 | 2 | 3 {
@@ -368,7 +370,41 @@ export async function fetchRoute(
     );
   }
 
-  const route = await computeRoute(fromLat, fromLon, toLat, toLon);
+  // ── 1. Try local WFS graph first (zero network, has accessibility scores) ──
+  let route: RoutePath | null = await computeRoute(fromLat, fromLon, toLat, toLon);
+  let routeSource: 'wfs' | 'osm' = 'wfs';
+
+  // Check if start/end are well-covered by the WFS graph
+  if (route) {
+    const graph = await loadRouteGraph();
+    if (graph) {
+      const startNode = findNearestNode(graph, fromLat, fromLon);
+      const endNode = findNearestNode(graph, toLat, toLon);
+      // If either point is >1km from nearest graph node, coverage is poor
+      const startDist = startNode >= 0
+        ? haversine(fromLat, fromLon, graph.nodes[startNode].lat, graph.nodes[startNode].lon)
+        : Infinity;
+      const endDist = endNode >= 0
+        ? haversine(toLat, toLon, graph.nodes[endNode].lat, graph.nodes[endNode].lon)
+        : Infinity;
+      if (startDist > 1000 || endDist > 1000) {
+        // Poor WFS coverage — try OSM supplement
+        const osmGraph = await fetchOSMGraph(fromLat, fromLon, toLat, toLon);
+        if (osmGraph) {
+          const osmStart = findNearestNodeOSM(osmGraph, fromLat, fromLon);
+          const osmEnd = findNearestNodeOSM(osmGraph, toLat, toLon);
+          if (osmStart >= 0 && osmEnd >= 0) {
+            const osmRoute = routeOnOSM(osmGraph, osmStart, osmEnd);
+            if (osmRoute) {
+              route = osmRoute;
+              routeSource = 'osm';
+            }
+          }
+        }
+      }
+    }
+  }
+
   if (!route) {
     throw new Error('Kunne ikke finne en rute mellom disse punktene.');
   }
@@ -436,5 +472,6 @@ export async function fetchRoute(
     durationLabel: duration >= 3600 ? `${Math.floor(duration / 3600)} t ${Math.round((duration % 3600) / 60)} min` : `${Math.round(duration / 60)} min`,
     segments,
     accessiblePct: totalSampled > 0 ? Math.round((accessibleMeters / totalSampled) * 100) : 0,
+    routeSource,
   };
 }
