@@ -1,0 +1,107 @@
+name: Release AAB (Play Store)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - mobile/**
+      - packages/shared/**
+      - .github/workflows/release-aab.yml
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version tag (auto-detected from app.json if left empty)
+        required: false
+        default: ''
+        type: string
+      prerelease:
+        description: Mark as pre-release?
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Build AAB ─────────────────────────────────────────────────────
+  aab:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Install mobile dependencies
+        run: npm --prefix mobile ci
+
+      - name: Prebuild native Android project
+        run: npx expo prebuild --platform android --clean
+        working-directory: mobile
+
+      - name: Build Android AAB (Play Store bundle)
+        run: cd mobile/android && ./gradlew bundleRelease
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-aab-release
+          path: mobile/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
+
+  # ── Update Release with AAB ───────────────────────────────────────
+  update-release:
+    needs: aab
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Determine version tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            TAG="v${{ inputs.version }}"
+          else
+            VERSION=$(node -p "require('./mobile/app.json').expo.version")
+            TAG="v${VERSION}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Version tag: $TAG"
+
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: android-aab-release
+          path: artifacts/aab
+
+      - name: Find AAB file path
+        id: aab
+        run: |
+          AAB=$(find artifacts/aab -name '*.aab' -type f | head -1)
+          echo "path=$AAB" >> "$GITHUB_OUTPUT"
+          echo "AAB path: $AAB"
+
+      - name: Attach AAB to existing release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          fail_on_unmatched_files: true
+          files: ${{ steps.aab.outputs.path }}
