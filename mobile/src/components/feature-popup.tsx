@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Image,
   Linking,
@@ -22,6 +22,121 @@ export interface FeaturePopupProps {
   features?: FeatureInfo[];
 }
 
+function FeatureDetail({ feature }: { feature: FeatureInfo }) {
+  return (
+    <ScrollView
+      style={styles.scrollBody}
+      contentContainerStyle={styles.scrollContent}
+      accessibilityLabel="Stedsdetaljer"
+      accessibilityHint="Sveip for å høre egenskaper"
+      accessibilityLiveRegion="polite"
+    >
+      {/* Layer reference */}
+      {feature.layerName && (
+        <Text style={styles.layerLabel} accessibilityRole="header">
+          {esc(feature.layerName)}
+          {feature.featureId ? ` · #${esc(feature.featureId)}` : ''}
+        </Text>
+      )}
+
+      {/* Property table */}
+      <View style={styles.table}>
+        {[...feature.props.entries()]
+          .filter(([k, v]) => !/^bildefil[123]$/i.test(k) && v)
+          .map(([key, value]) => (
+            <View
+              key={key}
+              style={styles.tableRow}
+              accessible
+              accessibilityLabel={`${key}: ${value}`}
+            >
+              <Text style={styles.tableKey}>{esc(key)}</Text>
+              <Text style={styles.tableValue}>{esc(value)}</Text>
+            </View>
+          ))}
+      </View>
+
+      {/* Images */}
+      {feature.images.length > 0 && (
+        <View style={styles.imageSection}>
+          {feature.images.map((filename: string, ii: number) => {
+            const src = `${IMAGE_BASE_URL}/${encodeURIComponent(filename)}`;
+            return (
+              <Pressable
+                key={ii}
+                onPress={() => Linking.openURL(src)}
+                style={[
+                  styles.imageWrapper,
+                  feature.images.length === 1 && styles.imageWrapperSingle,
+                ]}
+              >
+                <Image
+                  source={{ uri: src }}
+                  style={[
+                    styles.image,
+                    feature.images.length === 1 && styles.imageSingle,
+                  ]}
+                  resizeMode="cover"
+                  accessibilityLabel={`Bilde: ${filename}`}
+                />
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+/** Human-readable label for a feature in the picker list */
+function featureLabel(f: FeatureInfo): string {
+  const navn = f.props.get('navn') || f.props.get('navn:friluftsliv') || f.props.get('navn:vatn');
+  const type = f.props.get('tilretteleggingsgrad') || f.props.get('kategori') || f.props.get('objecttype');
+  const parts: string[] = [];
+  if (navn) parts.push(esc(navn));
+  if (type) parts.push(esc(type));
+  if (parts.length === 0) {
+    const firstProp = [...f.props.entries()].find(([, v]) => v);
+    parts.push(firstProp ? esc(firstProp[1]) : f.layerName || 'Objekt');
+  }
+  const layer = f.layerName ? esc(f.layerName.replace(/^app:/, '')) : '';
+  return parts.join(' · ') + (layer ? `\n[${layer}]` : '');
+}
+
+function FeaturePicker({
+  features,
+  onSelect,
+}: {
+  features: FeatureInfo[];
+  onSelect: (f: FeatureInfo, idx: number) => void;
+}) {
+  return (
+    <ScrollView
+      style={styles.pickerList}
+      contentContainerStyle={styles.pickerContent}
+    >
+      <Text style={styles.pickerHint}>
+        {features.length} {features.length === 1 ? 'objekt funnet' : 'objekter funnet'}. Velg for å se detaljer:
+      </Text>
+      {features.map((f, i) => (
+        <Pressable
+          key={i}
+          style={({ pressed }) => [
+            styles.pickerRow,
+            pressed && styles.pickerRowPressed,
+          ]}
+          onPress={() => onSelect(f, i)}
+          accessibilityRole="button"
+          accessibilityLabel={`Se ${featureLabel(f).replace(/\n/g, ', ')}`}
+        >
+          <Text style={styles.pickerIcon}>📌</Text>
+          <Text style={styles.pickerLabel}>{featureLabel(f)}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
 export function FeaturePopup({
   visible,
   onClose,
@@ -29,8 +144,18 @@ export function FeaturePopup({
   title,
   features = [],
 }: FeaturePopupProps) {
+  // When the popup opens, reset selection so the user sees the picker first
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+
+  // Reset picker state whenever the popup opens with new features
+  React.useEffect(() => {
+    if (visible) {
+      setSelectedIdx(null);
+    }
+  }, [visible, features]);
+
   const meaningful = features.filter((f) => f.props.size > 0);
-  const selected = meaningful[0];
+  const selected = selectedIdx != null ? meaningful[selectedIdx] : null;
 
   return (
     <Modal
@@ -40,25 +165,41 @@ export function FeaturePopup({
       onRequestClose={onClose}
       aria-label="Stedsinfo"
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Lukk stedsinfo" accessibilityHint="Trykk for å lukke" accessibilityRole="button">
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityLabel="Lukk stedsinfo"
+        accessibilityHint="Trykk for å lukke"
+        accessibilityRole="button"
+      >
         <View />
       </Pressable>
       <View style={styles.panel}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title} numberOfLines={1}>
-            {title ?? 'Stedsinfo'}
+            {selected
+              ? title ?? 'Stedsinfo'
+              : title ?? 'Stedsinfo — velg objekt'}
           </Text>
           <Pressable
-            onPress={onClose}
+            onPress={() => {
+              if (selected) {
+                setSelectedIdx(null); // back to picker
+              } else {
+                onClose();
+              }
+            }}
             style={({ pressed }) => [
               styles.closeButton,
               pressed && styles.closeButtonPressed,
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Lukk vindu"
+            accessibilityLabel={selected ? 'Tilbake til liste' : 'Lukk vindu'}
           >
-            <Text style={styles.closeButtonText}>✕</Text>
+            <Text style={styles.closeButtonText}>
+              {selected ? '←' : '✕'}
+            </Text>
           </Pressable>
         </View>
 
@@ -74,65 +215,14 @@ export function FeaturePopup({
           <Text style={styles.emptyText}>Ingen data funnet.</Text>
         )}
 
-        {/* Feature detail */}
-        {!loading && selected && (
-          <ScrollView
-            style={styles.scrollBody}
-            contentContainerStyle={styles.scrollContent}
-            accessibilityLabel="Stedsdetaljer"
-            accessibilityHint="Sveip for å høre egenskaper"
-            accessibilityLiveRegion="polite"
-          >
-            {/* Layer reference */}
-            {selected.layerName && (
-              <Text style={styles.layerLabel} accessibilityRole="header">
-                {esc(selected.layerName)}
-                {selected.featureId ? ` · #${esc(selected.featureId)}` : ''}
-              </Text>
-            )}
-
-            {/* Property table */}
-            <View style={styles.table}>
-              {[...selected.props.entries()]
-                .filter(([k, v]) => !/^bildefil[123]$/i.test(k) && v)
-                .map(([key, value]) => (
-                  <View key={key} style={styles.tableRow} accessible accessibilityLabel={`${key}: ${value}`}>
-                    <Text style={styles.tableKey}>{esc(key)}</Text>
-                    <Text style={styles.tableValue}>{esc(value)}</Text>
-                  </View>
-                ))}
-            </View>
-
-            {/* Images */}
-            {selected.images.length > 0 && (
-              <View style={styles.imageSection}>
-                {selected.images.map((filename: string, ii: number) => {
-                  const src = `${IMAGE_BASE_URL}/${encodeURIComponent(filename)}`;
-                  return (
-                    <Pressable
-                      key={ii}
-                      onPress={() => Linking.openURL(src)}
-                      style={[
-                        styles.imageWrapper,
-                        selected.images.length === 1 && styles.imageWrapperSingle,
-                      ]}
-                    >
-                      <Image
-                        source={{ uri: src }}
-                        style={[
-                          styles.image,
-                          selected.images.length === 1 && styles.imageSingle,
-                        ]}
-                        resizeMode="cover"
-                        accessibilityLabel={`Bilde: ${filename}`}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-          </ScrollView>
+        {/* Picker or detail */}
+        {!loading && meaningful.length > 0 && !selected && (
+          <FeaturePicker
+            features={meaningful}
+            onSelect={(_f, idx) => setSelectedIdx(idx)}
+          />
         )}
+        {!loading && selected && <FeatureDetail feature={selected} />}
       </View>
     </Modal>
   );
@@ -210,6 +300,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 24,
   },
+  // ── Picker ──────────────────────────────────────────────
+  pickerList: {
+    flex: 1,
+  },
+  pickerContent: {
+    padding: 16,
+  },
+  pickerHint: {
+    fontSize: 12,
+    color: MapColors.mutedText,
+    fontStyle: 'italic',
+    marginBottom: 10,
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: MapColors.border,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 6,
+  },
+  pickerRowPressed: {
+    backgroundColor: 'rgba(232,160,32,0.1)',
+    borderColor: MapColors.accent,
+  },
+  pickerIcon: {
+    fontSize: 14,
+    marginRight: 8,
+    marginTop: 1,
+  },
+  pickerLabel: {
+    fontSize: 13,
+    color: MapColors.bodyText,
+    flex: 1,
+    lineHeight: 18,
+  },
+  // ── Detail view ─────────────────────────────────────────
   layerLabel: {
     fontSize: 11,
     color: MapColors.headingText,
