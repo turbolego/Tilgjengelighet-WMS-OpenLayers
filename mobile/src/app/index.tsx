@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Platform,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -508,6 +510,14 @@ export default function HomeScreen() {
         </>
       )}
 
+      {/* Route loading overlay (toilet button, etc.) */}
+      {toiletLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator color="#e8a020" size="large" />
+          <Text style={styles.loadingOverlayLabel}>Søker etter nærmeste toalett…</Text>
+        </View>
+      )}
+
       {/* Modals */}
       <SettingsPanel
         visible={settingsVisible}
@@ -582,5 +592,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(13,17,23,0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    gap: 12,
+  },
+  loadingOverlayLabel: {
+    fontSize: 15,
+    color: '#e8a020',
+    fontWeight: '600',
   },
 });

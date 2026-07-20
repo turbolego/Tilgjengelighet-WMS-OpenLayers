@@ -179,6 +179,14 @@ export function RoutePlannerModal({
           {/* Error */}
           {error !== '' && <Text style={styles.error}>{error}</Text>}
 
+          {/* Loading state */}
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={MapTheme.amber} size="large" />
+              <Text style={styles.loadingLabel}>Beregner rute…</Text>
+            </View>
+          )}
+
           {/* Route result */}
           {routeResult && (
             <View style={styles.result}>
@@ -442,6 +450,20 @@ const styles = StyleSheet.create({
   clearBtnText: {
     fontSize: 13,
     color: MapColors.mutedText,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    backgroundColor: 'rgba(58,80,104,0.2)',
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 12,
+  },
+  loadingLabel: {
+    fontSize: 14,
+    color: MapTheme.amber,
+    fontWeight: '600',
   },
   info: {
     marginTop: 16,
