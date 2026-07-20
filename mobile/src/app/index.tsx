@@ -548,7 +548,6 @@ export default function HomeScreen() {
         visible={routePlannerVisible}
         onClose={() => {
           setRoutePlannerVisible(false);
-          handleClearRoute();
         }}
         myLocation={myLocation}
         onRouteResult={handleRouteResult}
