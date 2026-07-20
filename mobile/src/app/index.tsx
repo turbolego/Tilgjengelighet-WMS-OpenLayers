@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Map, Camera, RasterSource, Layer, GeoJSONSource, type MapRef, type LineLayerStyle } from '@maplibre/maplibre-react-native';
+import { Map, Camera, RasterSource, Layer, GeoJSONSource, type MapRef, type LineLayerStyle, type CircleLayerStyle } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 
 import { ActionBar } from '@/components/action-bar';
@@ -98,6 +98,25 @@ export default function HomeScreen() {
 
   // ── GPS loading ──────────────────────────────────────────────────────────
   const [gpsLoading, setGpsLoading] = useState(false);
+  const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
+
+  // ── My-location marker GeoJSON ─────────────────────────────────────────
+  const myLocationGeojson = useMemo(() => {
+    if (!myLocation) return null;
+    return {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          properties: {},
+          geometry: {
+            type: 'Point' as const,
+            coordinates: myLocation,
+          },
+        },
+      ],
+    };
+  }, [myLocation]);
 
   // ── Boot: load capabilities ─────────────────────────────────────────────
   useEffect(() => {
@@ -121,6 +140,13 @@ export default function HomeScreen() {
         setLayersLoading(false);
       }
     })();
+
+    // Cleanup location watcher on unmount
+    return () => {
+      if (locationWatcherRef.current) {
+        locationWatcherRef.current.remove();
+      }
+    };
   }, []);
 
   // ── Layer toggling ──────────────────────────────────────────────────────
@@ -237,8 +263,21 @@ export default function HomeScreen() {
         accuracy: Location.Accuracy.High,
       });
 
-      animateTo([pos.coords.longitude, pos.coords.latitude], 14);
-      setMyLocation([pos.coords.longitude, pos.coords.latitude]);
+      const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+      animateTo(coords, 14);
+      setMyLocation(coords);
+
+      // Start continuous location tracking
+      if (locationWatcherRef.current) {
+        locationWatcherRef.current.remove();
+      }
+      locationWatcherRef.current = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+        (location) => {
+          const updated: [number, number] = [location.coords.longitude, location.coords.latitude];
+          setMyLocation(updated);
+        },
+      );
     } catch (err: any) {
       const msg =
         err.code === 2
@@ -459,6 +498,33 @@ export default function HomeScreen() {
           >
             <Layer id="geonorge-wms-layer" type="raster" />
           </RasterSource>
+
+          {/* My-location marker */}
+          {myLocationGeojson && (
+            <GeoJSONSource
+              id="my-location-source"
+              data={myLocationGeojson}
+            >
+              <Layer
+                id="my-location-circle-outline"
+                type="circle"
+                style={{
+                  circleColor: '#FFFFFF',
+                  circleRadius: 10,
+                  circleOpacity: 0.9,
+                } satisfies CircleLayerStyle}
+              />
+              <Layer
+                id="my-location-circle"
+                type="circle"
+                style={{
+                  circleColor: '#4A90D9',
+                  circleRadius: 6,
+                  circleOpacity: 1,
+                } satisfies CircleLayerStyle}
+              />
+            </GeoJSONSource>
+          )}
 
           {/* Route overlay (local Dijkstra + accessibility overlay) */}
           {routeGeojson && (
