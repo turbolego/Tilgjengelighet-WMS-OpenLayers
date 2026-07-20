@@ -87,7 +87,7 @@ jobs:
           echo "Version tag: $TAG"
 
       - name: Download AAB artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: android-aab-release
           path: artifacts/aab

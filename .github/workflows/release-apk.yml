@@ -162,14 +162,14 @@ jobs:
           echo "Version tag: $TAG"
 
       - name: Download APK artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: android-apk-release
           path: artifacts/android
 
       - name: Download iOS artifacts
         if: ${{ needs.ios.result == 'success' }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ios-release
           path: artifacts/ios
