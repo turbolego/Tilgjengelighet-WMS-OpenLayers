@@ -307,6 +307,9 @@ export interface RouteResult {
   durationLabel: string;
   segments: RouteAccessibilitySample[];
   accessiblePct: number;
+  partiallyAccessiblePct: number;
+  notAccessiblePct: number;
+  unknownPct: number;
   routeSource: 'wfs' | 'osm';
 }
 
@@ -374,13 +377,27 @@ export async function fetchRoute(
   let route: RoutePath | null = await computeRoute(fromLat, fromLon, toLat, toLon);
   let routeSource: 'wfs' | 'osm' = 'wfs';
 
-  // Check if start/end are well-covered by the WFS graph
-  if (route) {
+  // ── 2. WFS fallback: try OSM if Dijkstra failed (disconnected graph) ─────────
+  if (!route) {
+    // WFS nodes are in different connected components — try OSM Overpass API
+    const osmGraph = await fetchOSMGraph(fromLat, fromLon, toLat, toLon);
+    if (osmGraph) {
+      const osmStart = findNearestNodeOSM(osmGraph, fromLat, fromLon);
+      const osmEnd = findNearestNodeOSM(osmGraph, toLat, toLon);
+      if (osmStart >= 0 && osmEnd >= 0) {
+        const osmRoute = routeOnOSM(osmGraph, osmStart, osmEnd);
+        if (osmRoute) {
+          route = osmRoute;
+          routeSource = 'osm';
+        }
+      }
+    }
+  } else {
+    // WFS Dijkstra succeeded — check if start/end have poor coverage (>1km from node)
     const graph = await loadRouteGraph();
     if (graph) {
       const startNode = findNearestNode(graph, fromLat, fromLon);
       const endNode = findNearestNode(graph, toLat, toLon);
-      // If either point is >1km from nearest graph node, coverage is poor
       const startDist = startNode >= 0
         ? haversine(fromLat, fromLon, graph.nodes[startNode].lat, graph.nodes[startNode].lon)
         : Infinity;
@@ -458,11 +475,18 @@ export async function fetchRoute(
 
   // ── 3. Build segments ─────────────────────────────────────────────
   const segments: RouteAccessibilitySample[] = [];
-  let accessibleMeters = 0; let totalSampled = 0;
+  let accessibleMeters = 0;
+  let partialMeters = 0;
+  let notAccessibleMeters = 0;
+  let unknownMeters = 0;
+  let totalSampled = 0;
   for (let i = 0; i < samples.length - 1; i++) {
     const segM = samples[i + 1].m - samples[i].m;
     totalSampled += segM;
     if (samples[i].score === 3) accessibleMeters += segM;
+    else if (samples[i].score === 2) partialMeters += segM;
+    else if (samples[i].score === 1) notAccessibleMeters += segM;
+    else unknownMeters += segM;
     segments.push({ range: [samples[i].m, samples[i + 1].m], score: samples[i].score, label: samples[i].label });
   }
 
@@ -472,6 +496,9 @@ export async function fetchRoute(
     durationLabel: duration >= 3600 ? `${Math.floor(duration / 3600)} t ${Math.round((duration % 3600) / 60)} min` : `${Math.round(duration / 60)} min`,
     segments,
     accessiblePct: totalSampled > 0 ? Math.round((accessibleMeters / totalSampled) * 100) : 0,
+    partiallyAccessiblePct: totalSampled > 0 ? Math.round((partialMeters / totalSampled) * 100) : 0,
+    notAccessiblePct: totalSampled > 0 ? Math.round((notAccessibleMeters / totalSampled) * 100) : 0,
+    unknownPct: totalSampled > 0 ? Math.round((unknownMeters / totalSampled) * 100) : 0,
     routeSource,
   };
 }

@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   },
   versionLine: {
     fontSize: 10,
-    color: 'rgba(255,255,255,0.35)',
+    color: '#c8d8e4',
     textAlign: 'center',
     marginTop: 4,
     fontFamily: 'monospace',

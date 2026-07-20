@@ -41,5 +41,9 @@ jobs:
       - name: Install mobile dependencies
         run: npm --prefix mobile ci
 
+      - name: Generate build version
+        working-directory: mobile
+        run: node scripts/gen-version.js
+
       - name: Lint mobile app
         run: npm --prefix mobile run lint
