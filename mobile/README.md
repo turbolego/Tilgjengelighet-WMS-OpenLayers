@@ -1,56 +1,108 @@
-# Welcome to your Expo app 👋
+# Tilgjengelighet — Mobilapp
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Geonorge tilgjengelighetskart som **Expo-mobilapp** for Android og iOS. Planlegger ruter med fokus på universell utforming — hvilke veier og stier er konstruert for rullestol, barnevogn og nedsatt syn?
 
-## Get started
+Ruting støtter tre motorer:
+- **WFS Dijkstra** (lokal graf, null nettverk)
+- **OSM Overpass API** (global, krever User-Agent header)
+- **Valhalla** (global, ingen autentisering)
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## 🚀 Komme i gang
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Da får du opp Expo dev-server. Deretter:
+- `a` → Android-emulator
+- `i` → iOS-simulator
+- Skann QR-kode med **Expo Go** (Android)
 
-### Other setup steps
+## 🧪 Testing & CI
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npx expo lint       # ESLint
+npx tsc --noEmit     # TypeScript-kompilering
+```
 
-## Learn more
+Disse kjøres automatisk i CI ved pull requests.
 
-To learn more about developing your project with Expo, look at the following resources:
+## 📱 Funksjoner
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Hovedmeny (ActionBar)
 
-## Join the community
+| Knapp | Funksjon |
+|---|---|
+| + / − | Zoom inn / ut |
+| ⌂ | Tilbakestill kartvisning |
+| 📍 | Hent min posisjon + start kontinuerlig GPS-sporing |
+| 🏆 | Toppliste — universelt tilgjengelige veier i nærheten |
+| 📋 | Vis WMS-objekter i visningsområdet |
+| 🔎 | Søk stedsnavn (Kartverket) |
+| 🧭 | Ruteplanlegger |
+| 🚻 | Nærmeste toalett (ruter automatisk) |
+| ⚙ | Innstillinger |
 
-Join our community of developers creating universal apps.
+### Ruteplanlegger
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+1. Velg startsted (søk eller «Min posisjon»)
+2. Velg destinasjon
+3. Trykk «Planlegg rute»
+4. Ruten vises på kartet med fargekodet tilgjegelighetsanalyse
+
+**3 ruting-fallbacks:**
+- WFS Dijkstra (lokal graf — null nettverkskall)
+- OSM Overpass (bbox-spørring med highway-tags)
+- Valhalla (global, gratis, ingen API-nøkkel)
+
+**Tilgjengelighetsvurdering:**
+- 🟢 Tilgjengelig (asfalt/gangvei)
+- 🟡 Delvis tilgjengelig (skogsvei)
+- 🔴 Ikke tilgjengelig (sti/trapp)
+- ⚪ Manglende data → OSM tag-fallback
+
+### 🔍 Tekniske detaljer
+
+**WMS-tjenester:**
+- Primær: `wms.tilgjengelighet3` → `t_vei_r`-lag
+- Sekundær: veggrunn, stedsnavn (toppliste/kartskanning)
+
+**Ruting (i rekkefølge):**
+- **WFS Dijkstra**: Lokal graf fra Geonorge WFS
+- **OSM Overpass**: `overpass-api.de` API med User-Agent-header
+- **Valhalla**: `valhalla1.openstreetmap.de` globalt API
+
+**Ingen API-nøkler!** Alle rutingtjenester og kartdata er offentlige og gratis.
+
+---
+
+## 🏗 Bygge appen
+
+For lokale produksjonsbygg, se [MOBILE_BUILD.md](../MOBILE_BUILD.md).
+
+GitHub Actions bygger automatisk:
+- **Release**: APK/AAB på hver push til `main`
+- **Playwright-tester**: E2E på hver PR
+- **Lint + TypeScript**: CI på hver PR
+
+---
+
+## 🎨 Design
+
+- Mørk palett: `#0d1117` (ink), `#e8a020` (amber), `#3a5068` (steel)
+- WCAG AA: Kontrast ≥ 5.65:1
+- Norsk UI (a11yLabels, feilmeldinger, toast)
+- SafeAreaProvider — ingen overlapping med system bars
+
+---
+
+## 🌍 Ressurser
+
+- [MapLibre React Native docs](https://maplibre.org/maplibre-react-native/)
+- [Valhalla API docs](https://valhalla.github.io/valhalla/api/route/api-reference/)
+- [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
+- [Geonorge Tilgjengelighet WMS](https://data.norge.no/data-services/98c22855-9637-3b91-9299-4138ac00f072)
+- [Statens Vegvesen Ruteplantjeneste](https://www.vegvesen.no/ws/no/vegvesen/ruteplan/routingservice_v2_0/open/routingservice)

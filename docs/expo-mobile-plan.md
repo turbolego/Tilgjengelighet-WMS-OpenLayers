@@ -1,84 +1,126 @@
-# Expo Mobile Plan (Web + Native)
+# Expo Mobile Plan — Completed
 
-This repository currently ships a Vite + OpenLayers web app to GitHub Pages.
-This plan prepares the project for an Expo mobile app while keeping the existing web app.
+This document describes the architecture migration from a Vite+OpenLayers web app to a unified web+mobile project with Expo.
 
-## Source references used
+## What was built
 
-- https://docs.expo.dev/get-started/create-a-project/
-- https://docs.expo.dev/router/introduction/
-- https://docs.expo.dev/workflow/using-libraries/
-- https://docs.expo.dev/deploy/web/
-
-## Target architecture
-
-- Keep current web app as-is (Vite + OpenLayers + GitHub Pages).
-- Add a new Expo app in `mobile/` for Android and iOS.
-- Share non-UI domain logic between web and mobile over time (parsing, filtering, API helpers).
-
-## Recommended phases
-
-### Phase 1: Bootstrap Expo app in this repo
+### Phase 1: Bootstrap Expo ✅
 
 ```bash
-npm run mobile:init
 cd mobile
 npx expo start
 ```
 
-Notes:
-- Uses `create-expo-app` with `default@sdk-57` template.
-- Prefer Expo Router for file-based routes and deep linking.
-- Start in Expo Go first, then move to development builds when native modules are needed.
+- Uses `@maplibre/maplibre-react-native` (no Google Maps API key)
+- Expo Router for file-based navigation
+- Dark theme shared between web and mobile
 
-### Phase 2: Mobile MVP strategy
+### Phase 2: Native map screen ✅
 
-Choose one path:
+- MapLibre GL Native replaces OpenLayers
+- WMS raster overlay via `RasterSource`
+- GetFeatureInfo via tap → modal popup
+- Search via Kartverket's stedsnavntjeneste
+- Layer toggling via GetCapabilities XML parse
 
-1. Fastest delivery: WebView wrapper
-- Use `react-native-webview` to host the existing GitHub Pages map app inside mobile.
-- Pros: immediate parity with current web map.
-- Cons: lower native UX and accessibility fidelity.
+### Phase 3: Shared core module ✅
 
-2. Native map screen
-- Use a React Native map library and consume WMS data/services directly.
-- Move search, feature parsing, and accessibility scoring logic into shared JS modules.
-- Pros: better native performance and UX.
-- Cons: larger migration effort.
+Shared TypeScript utilities extracted to `mobile/src/utils/`:
 
-### Phase 3: Shared core module
+| Module | Purpose |
+|---|---|
+| `map-api.ts` | WMS queries, routing orchestrator, search |
+| `osm-route.ts` | Overpass API graph fetch + Dijkstra routing |
+| `valhalla-route.ts` | Free global Valhalla routing (public instance) |
+| `graph-utils.ts` | Local WFS graph loading + Dijkstra |
+| `toilet-search.ts` | Overpass search for nearest `amenity=toilets` |
 
-Move pure utilities into a shared package (or shared folder), for example:
+### Phase 4: Delivery and deployment ✅
 
-- XML/GML parsing
-- feature filtering/scoring
-- API URL builders
-- escaping/sanitization helpers
+- Web: GitHub pages from root (`deploy.yml`)
+- Mobile: GitHub Release builds on push to main (`release.yml`)
+- Optional EAS: Cloud builds with `EXPO_TOKEN` (`mobile-eas.yml`)
+- CI: lint + type-check + E2E on every PR
 
-This repo already has an initial extraction in `map-utils.js` with tests.
+---
 
-### Phase 4: Delivery and deployment
+## Architecture decisions
 
-- Web: continue GitHub Pages from this root project.
-- Mobile: use EAS for builds and store submission.
-- Optional Expo web hosting for the mobile Expo app's web target:
+### Why MapLibre instead of Google Maps?
 
-```bash
-cd mobile
-npx expo export --platform web
-eas deploy --prod
+- **No API key required** — MapLibre is free and open source
+- WMS overlay works natively via `RasterSource`
+- Same coordinate system and projection support as OpenLayers
+- Norwegian WMS data → no Google dependency
+
+### Why 3 routing fallbacks instead of 1?
+
+| Engine | Strength | Weakness |
+|---|---|---|
+| WFS Dijkstra | Has accessibility scores | Fragmentering i skogområderr |
+| OSM Overpass | Full Norway coverage | Needs User-Agent, 10-30 sec |
+| Valhalla | Global, instant, no auth | No accessibility scores |
+
+The auto-fallback chain ensures the user always gets a route.
+
+### Why Valhalla instead of OSRM/GraphHopper?
+
+- **OSRM** public demo returns driving speed for all profiles (walk = 8.4 m/s)
+- **GraphHopper / ORS / FreeRoute** require API keys
+- **Valhalla** (FOSSGIS instance) is the only truly free, no-key option with correct walking speed
+
+---
+
+## Files structure
+
+```
+mobile/src/
+├── app/
+│   ├── _layout.tsx          ← Root layout (SafeAreaProvider)
+│   ├── index.tsx            ← HomeScreen (main map + all logic)
+│   └── modal-test.tsx       ← Dev testing modal
+├── components/
+│   ├── action-bar.tsx       ← Zoom, GPS, route planner, toilet, settings
+│   ├── status-bar.tsx       ← Zoom + layer count display
+│   ├── settings-panel.tsx   ← Basemap, layer toggles
+│   ├── route-planner-modal.tsx ← From/To search + plan button + results
+│   ├── search-modal.tsx     ← Search modal (Kartverket stedsnavn)
+│   ├── place-search.tsx     ← Reusable search bar component
+│   ├── feature-popup.tsx    ← Tap-on-map feature info popup
+│   ├── feature-list-modal.tsx ← Viewport scanning results
+│   ├── highscore-modal.tsx  ← Top road accessibility listing
+│   ├── toast-overlay.tsx    ← Global toast notification system
+│   └── ... (shared UI components)
+├── utils/
+│   ├── map-api.ts           ← WMS query pipeline + routing orchestrator
+│   ├── graph-utils.ts       ← WFS graph: load, Dijkstra, snap
+│   ├── osm-route.ts         ← Overpass API: fetch graph + route
+│   ├── valhalla-route.ts    ← Valhalla: free global routing
+│   └── toilet-search.ts     ← Overpass: nearest toilet search
+├── constants/
+│   ├── map-config.ts        ← WMS URLs, routing config, coverage
+│   └── map-theme.ts         ← Dark palette (ink/amber/steel)
+└── hooks/
+    └── use-theme.ts         ← Color scheme detection
 ```
 
-## Compatibility notes
+---
 
-- Install mobile packages with `npx expo install` in the Expo project to keep version compatibility.
-- Validate third-party React Native packages against React Native Directory and Expo docs.
-- If a package needs native configuration, use development builds instead of Expo Go.
+## Next steps / ideas
 
-## Immediate next technical tasks
+- [ ] Accessibility score aggregation per road (highscore → topliste)
+- [ ] "Avoid stairs" route preference
+- [ ] Offline caching of WFS graph (avoid re-downloading)
+- [ ] iOS signed release builds (requires Apple Developer account)
+- [ ] Share route (link + QR code)
+- [ ] Voice navigation (TTS turn-by-turn in Norwegian)
+- [ ] Multiple accessibility profiles (wheelchair, stroller, vision-impaired)
+- [ ] Push notifications for route updates
+- [ ] Matrikkeladresse-søk (addresse ↔ koordinat)
+- [ ] Turforslag: pre-definerede ruter med tilgjengelighetsinfo
 
-1. Create `mobile/` and verify `npx expo start` runs on iOS simulator.
-2. Build a `mobile/app/(tabs)/index.tsx` screen with search + list first.
-3. Add a map screen and integrate Geonorge endpoints.
-4. Share parser/filter utilities between web and mobile.
-5. Add CI for `npm run check` in this web app and Expo checks in `mobile/`.
+---
+
+**See also:**
+- [main README](../README.md) — full project overview
+- [MOBILE_BUILD.md](../MOBILE_BUILD.md) — build guide (CIC, EAS, troubleshooting)
