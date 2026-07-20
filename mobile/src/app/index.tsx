@@ -36,9 +36,11 @@ import {
   scanForHighscoreData,
   searchPlaces,
   scanViewportFeatures,
+  fetchRoute,
   type PlaceResult,
   type RouteResult,
 } from '@/utils/map-api';
+import { findNearestToilet } from '@/utils/toilet-search';
 
 // Minimal empty style for "no basemap" (avoids empty/null mapStyle)
 const EMPTY_STYLE = {
@@ -283,6 +285,60 @@ export default function HomeScreen() {
     setRouteGeojson(null);
   }, []);
 
+  // ── Route to nearest toilet ──────────────────────────────────
+  const [toiletLoading, setToiletLoading] = useState(false);
+  const handleRouteToilet = useCallback(async () => {
+    setToiletLoading(true);
+
+    try {
+      // Get current position
+      let pos = myLocation;
+      if (!pos) {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          showToast('Posisjonstilgang kreves for å finne nærmeste toalett.', 'error');
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        pos = [location.coords.longitude, location.coords.latitude];
+        setMyLocation(pos);
+        animateTo(pos, 14);
+      }
+
+      // Clear any existing route
+      setRouteGeojson(null);
+
+      // Find nearest toilet
+      const toilet = await findNearestToilet(pos[1], pos[0]);
+      if (!toilet) {
+        showToast('Fant ingen toalett i nærheten.', 'info');
+        return;
+      }
+
+      showToast(
+        `Ruter til ${toilet.name} (${toilet.distanceKm} km unna)…`,
+        'info',
+      );
+
+      // Route from current position to toilet
+      const result = await fetchRoute(
+        [pos[0], pos[1]],
+        [toilet.lon, toilet.lat],
+      );
+      handleRouteResult(result);
+    } catch (err: any) {
+      const msg =
+        err.code === 2
+          ? 'Posisjon utilgjengelig. Aktiver posisjonstjenester.'
+          : `Kunne ikke rute til toalett: ${err.message}`;
+      showToast(msg, 'error');
+    } finally {
+      setToiletLoading(false);
+    }
+  }, [myLocation, animateTo, handleRouteResult]);
+
   // ── Viewport scanning ──────────────────────────────────────────────────
   const computeExtent = useCallback(() => {
     const curZoom = mapZoomRef.current;
@@ -444,6 +500,7 @@ export default function HomeScreen() {
             onOpenFeatureList={handleOpenFeatureList}
             onOpenSearch={() => setSearchVisible(true)}
             onOpenRoutePlanner={handleOpenRoutePlanner}
+            onRouteToilet={handleRouteToilet}
             gpsLoading={gpsLoading}
             safeAreaBottom={insets.bottom}
           />

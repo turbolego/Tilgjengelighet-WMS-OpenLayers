@@ -26,6 +26,7 @@ import {
 } from '@/constants/map-config';
 import { computeRoute, findNearestNode, loadRouteGraph, type RoutePath } from './graph-utils';
 import { fetchOSMGraph, findNearestNodeOSM, routeOnOSM, haversine } from './osm-route';
+import { fetchValhallaRoute } from './valhalla-route';
 
 export { esc, parseCapabilities, parseFeatureInfoText, parseGMLFeatureInfo, filterFullyAccessible };
 
@@ -310,7 +311,7 @@ export interface RouteResult {
   partiallyAccessiblePct: number;
   notAccessiblePct: number;
   unknownPct: number;
-  routeSource: 'wfs' | 'osm';
+  routeSource: 'wfs' | 'osm' | 'valhalla';
 }
 
 function scoreAccessibility(props: Map<string, string>): 0 | 1 | 2 | 3 {
@@ -375,7 +376,7 @@ export async function fetchRoute(
 
   // ── 1. Try local WFS graph first (zero network, has accessibility scores) ──
   let route: RoutePath | null = await computeRoute(fromLat, fromLon, toLat, toLon);
-  let routeSource: 'wfs' | 'osm' = 'wfs';
+  let routeSource: 'wfs' | 'osm' | 'valhalla' = 'wfs';
 
   // ── 2. WFS fallback: try OSM if Dijkstra failed (disconnected graph) ─────────
   if (!route) {
@@ -419,6 +420,20 @@ export async function fetchRoute(
           }
         }
       }
+    }
+  }
+
+  // ── 3. WFS+OSM all failed — try Valhalla global fallback ────────
+  if (!route) {
+    const valhallaRoute = await fetchValhallaRoute(fromLat, fromLon, toLat, toLon);
+    if (valhallaRoute && valhallaRoute.coordinates.length >= 2) {
+      route = {
+        coordinates: valhallaRoute.coordinates,
+        distance: Math.round(valhallaRoute.distanceKm * 1000),
+        duration: Math.round(valhallaRoute.durationSec),
+        highwayTags: undefined,
+      };
+      routeSource = 'valhalla';
     }
   }
 
