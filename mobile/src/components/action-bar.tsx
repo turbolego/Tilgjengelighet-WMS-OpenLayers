@@ -12,6 +12,7 @@ export interface ActionBarProps {
   onOpenFeatureList: () => void;
   onOpenSearch: () => void;
   onOpenRoutePlanner: () => void;
+  onRouteToilet: () => void;
   gpsLoading?: boolean;
   safeAreaBottom?: number;
 }
@@ -29,6 +30,7 @@ export function ActionBar({
   onOpenFeatureList,
   onOpenSearch,
   onOpenRoutePlanner,
+  onRouteToilet,
   gpsLoading = false,
   safeAreaBottom = 0,
 }: ActionBarProps) {
@@ -49,6 +51,7 @@ export function ActionBar({
       <View style={styles.divider} />
       <MapButton label="🔎" a11yLabel="Søk stedsnavn" onPress={onOpenSearch} />
       <MapButton label="🧭" a11yLabel="Ruteplanlegger" onPress={onOpenRoutePlanner} />
+      <MapButton label="🚻" a11yLabel="Nærmeste toalett" onPress={onRouteToilet} />
       <MapButton label="⚙" a11yLabel="Innstillinger" onPress={onOpenSettings} accent />
     </View>
   );

@@ -122,13 +122,15 @@ function buildGraphFromOverpass(
 
   if (coords.length < MIN_OSM_NODES) return null;
 
-  // Build adjacency edges from ways
+  // Build adjacency edges from ways + collect highway tags
   const edges: number[][] = new Array(coords.length);
   for (let i = 0; i < coords.length; i++) edges[i] = [];
+  const highwayTagLookup: Record<string, string> = {};
 
   for (const el of data.elements) {
     if (el.type !== 'way' || !el.nodes) continue;
     const n = el.nodes;
+    const highway = el.tags?.highway || 'unclassified';
     for (let i = 1; i < n.length; i++) {
       const u = osmIdToIndex.get(n[i - 1]);
       const v = osmIdToIndex.get(n[i]);
@@ -140,6 +142,10 @@ function buildGraphFromOverpass(
       // Undirected edges
       edges[u].push(v, Math.round(d));
       edges[v].push(u, Math.round(d));
+
+      // Store highway tag for this edge (use sorted node pair as key)
+      const key = u < v ? `${u},${v}` : `${v},${u}`;
+      highwayTagLookup[key] = highway;
     }
   }
 
@@ -152,6 +158,7 @@ function buildGraphFromOverpass(
       }
       return result;
     }),
+    highwayTagLookup,
   };
 }
 
@@ -281,16 +288,26 @@ export function routeOnOSM(
 
   // Physical distance
   let physDist = 0;
+  const highwayTags: string[] = [];
+  const lookup = graph.highwayTagLookup;
   for (let i = 1; i < coordinates.length; i++) {
     physDist += haversine(
       coordinates[i - 1][1], coordinates[i - 1][0],
       coordinates[i][1], coordinates[i][0],
     );
+    // Look up highway tag for this edge
+    if (lookup) {
+      const u = pathIdx[i - 1];
+      const v = pathIdx[i];
+      const key = u < v ? `${u},${v}` : `${v},${u}`;
+      highwayTags.push(lookup[key] || 'unclassified');
+    }
   }
 
   return {
     coordinates,
     distance: dist[endIdx],
     duration: physDist / 1.3,
+    highwayTags: highwayTags.length > 0 ? highwayTags : undefined,
   };
 }

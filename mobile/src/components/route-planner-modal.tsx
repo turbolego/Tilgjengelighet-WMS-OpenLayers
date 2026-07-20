@@ -212,8 +212,12 @@ export function RoutePlannerModal({
               <View style={styles.resultRow}>
                 <Text style={styles.resultLabel}>Kartdata:</Text>
                 <Text style={styles.resultValue}>
-                  {routeResult.routeSource === 'wfs' ? 'Tilgjengelighet-kart' : 'OpenStreetMap'}{' '}
-                  + tilgjengelighetsvurdering (t_vei_r)
+                  {routeResult.routeSource === 'wfs'
+                    ? 'Tilgjengelighet-kart'
+                    : routeResult.routeSource === 'valhalla'
+                      ? 'Valhalla (OpenStreetMap)'
+                      : 'OpenStreetMap'}{' '}
+                  + tilgjengelighetsvurdering
                 </Text>
               </View>
 

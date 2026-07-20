@@ -34,6 +34,8 @@ export interface GraphEdge {
 export interface RoutingGraph {
   nodes: GraphNode[];
   edges: GraphEdge[][];
+  /** OSM highway tag lookup: "u,v" sorted key → highway tag (e.g. "residential"). Only set for OSM graphs. */
+  highwayTagLookup?: Record<string, string>;
 }
 
 let _graph: RoutingGraph | null = null;
@@ -139,6 +141,13 @@ export interface RoutePath {
   distance: number;
   /** Estimated walking duration in seconds (at 1.3 m/s) based on physical distance */
   duration: number;
+  /**
+   * OSM highway tag for each segment between consecutive coordinates.
+   * Only set when the route was built from OSM data (Overpass API).
+   * Used as accessibility fallback when WMS t_vei_r has no local data.
+   * length = coordinates.length - 1
+   */
+  highwayTags?: string[];
 }
 
 /**

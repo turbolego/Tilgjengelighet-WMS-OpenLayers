@@ -26,6 +26,7 @@ import {
 } from '@/constants/map-config';
 import { computeRoute, findNearestNode, loadRouteGraph, type RoutePath } from './graph-utils';
 import { fetchOSMGraph, findNearestNodeOSM, routeOnOSM, haversine } from './osm-route';
+import { fetchValhallaRoute } from './valhalla-route';
 
 export { esc, parseCapabilities, parseFeatureInfoText, parseGMLFeatureInfo, filterFullyAccessible };
 
@@ -310,7 +311,7 @@ export interface RouteResult {
   partiallyAccessiblePct: number;
   notAccessiblePct: number;
   unknownPct: number;
-  routeSource: 'wfs' | 'osm';
+  routeSource: 'wfs' | 'osm' | 'valhalla';
 }
 
 function scoreAccessibility(props: Map<string, string>): 0 | 1 | 2 | 3 {
@@ -375,7 +376,7 @@ export async function fetchRoute(
 
   // ── 1. Try local WFS graph first (zero network, has accessibility scores) ──
   let route: RoutePath | null = await computeRoute(fromLat, fromLon, toLat, toLon);
-  let routeSource: 'wfs' | 'osm' = 'wfs';
+  let routeSource: 'wfs' | 'osm' | 'valhalla' = 'wfs';
 
   // ── 2. WFS fallback: try OSM if Dijkstra failed (disconnected graph) ─────────
   if (!route) {
@@ -422,6 +423,20 @@ export async function fetchRoute(
     }
   }
 
+  // ── 3. WFS+OSM all failed — try Valhalla global fallback ────────
+  if (!route) {
+    const valhallaRoute = await fetchValhallaRoute(fromLat, fromLon, toLat, toLon);
+    if (valhallaRoute && valhallaRoute.coordinates.length >= 2) {
+      route = {
+        coordinates: valhallaRoute.coordinates,
+        distance: Math.round(valhallaRoute.distanceKm * 1000),
+        duration: Math.round(valhallaRoute.durationSec),
+        highwayTags: undefined,
+      };
+      routeSource = 'valhalla';
+    }
+  }
+
   if (!route) {
     throw new Error('Kunne ikke finne en rute mellom disse punktene.');
   }
@@ -440,6 +455,7 @@ export async function fetchRoute(
 
   // ── 2. Sample accessibility along route ───────────────────────────
   const coords: [number, number][] = geometry.coordinates;
+  const highwayTags = route.highwayTags; // OSM highway tag per coordinate segment
   const samplePts: { m: number; lng: number; lat: number }[] = [];
   // Track true physical distance (haversine) separately from weighted cost
   let totalMeters = 0;
@@ -474,6 +490,27 @@ export async function fetchRoute(
   }
 
   // ── 3. Build segments ─────────────────────────────────────────────
+  // Map OSM highway tags to accessibility scores (fallback when WMS has no data)
+  function tagToScore(tag: string): { score: 0 | 1 | 2 | 3; label: string } {
+    // Paved roads → generally wheelchair accessible
+    if (['motorway', 'trunk', 'primary', 'secondary', 'tertiary'].includes(tag)) {
+      return { score: 3, label: 'Tilgjengelig (vei)' };
+    }
+    // Local paved roads → usually accessible
+    if (['residential', 'service', 'unclassified', 'cycleway'].includes(tag)) {
+      return { score: 3, label: 'Tilgjengelig (vei)' };
+    }
+    // Unpaved tracks → partially accessible
+    if (tag === 'track') {
+      return { score: 2, label: 'Delvis tilgjengelig (skogsvei)' };
+    }
+    // Narrow paths → limited accessibility
+    if (['path', 'footway'].includes(tag)) {
+      return { score: 1, label: 'Ikke tilgjengelig (sti)' };
+    }
+    return { score: 0, label: 'Ukjent vurdering' };
+  }
+
   const segments: RouteAccessibilitySample[] = [];
   let accessibleMeters = 0;
   let partialMeters = 0;
@@ -483,11 +520,33 @@ export async function fetchRoute(
   for (let i = 0; i < samples.length - 1; i++) {
     const segM = samples[i + 1].m - samples[i].m;
     totalSampled += segM;
-    if (samples[i].score === 3) accessibleMeters += segM;
-    else if (samples[i].score === 2) partialMeters += segM;
-    else if (samples[i].score === 1) notAccessibleMeters += segM;
+
+    let score = samples[i].score;
+    let label = samples[i].label;
+    let source = 'wms';
+
+    // When WMS returns no data, fall back to OSM highway tag estimate
+    if (score === 0 && highwayTags && routeSource === 'osm') {
+      const ptM = samples[i].m;
+      // Find which coordinate segment covers this sample point
+      const coordIdx = Math.round((ptM / totalMeters) * (highwayTags.length - 1));
+      const tag = highwayTags[Math.max(0, Math.min(coordIdx, highwayTags.length - 1))];
+      const fallback = tagToScore(tag);
+      score = fallback.score;
+      label = fallback.label;
+      source = 'osm-fallback';
+    }
+
+    if (score === 3) accessibleMeters += segM;
+    else if (score === 2) partialMeters += segM;
+    else if (score === 1) notAccessibleMeters += segM;
     else unknownMeters += segM;
-    segments.push({ range: [samples[i].m, samples[i + 1].m], score: samples[i].score, label: samples[i].label });
+
+    segments.push({
+      range: [samples[i].m, samples[i + 1].m],
+      score,
+      label: source === 'osm-fallback' ? label : label,
+    });
   }
 
   return {

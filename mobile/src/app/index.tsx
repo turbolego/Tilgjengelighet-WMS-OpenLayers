@@ -36,9 +36,11 @@ import {
   scanForHighscoreData,
   searchPlaces,
   scanViewportFeatures,
+  fetchRoute,
   type PlaceResult,
   type RouteResult,
 } from '@/utils/map-api';
+import { findNearestToilet } from '@/utils/toilet-search';
 
 // Minimal empty style for "no basemap" (avoids empty/null mapStyle)
 const EMPTY_STYLE = {
@@ -255,11 +257,87 @@ export default function HomeScreen() {
 
   const handleRouteResult = useCallback((result: RouteResult | null) => {
     setRouteGeojson(result?.geojson ?? null);
+
+    // Zoom to route bounds if we have a valid route
+    if (result?.geojson?.features?.[0]?.geometry?.coordinates) {
+      const coords = result.geojson.features[0].geometry.coordinates as [number, number][];
+      if (coords.length > 0) {
+        const lngs = coords.map((c) => c[0]);
+        const lats = coords.map((c) => c[1]);
+        const sw = [Math.min(...lngs), Math.min(...lats)];
+        const ne = [Math.max(...lngs), Math.max(...lats)];
+        // Only fly if the route is non-trivial (not a single point)
+        if (sw[0] !== ne[0] || sw[1] !== ne[1]) {
+          setCenter([(sw[0] + ne[0]) / 2, (sw[1] + ne[1]) / 2]);
+          // Compute zoom: route width in degrees → rough zoom level
+          const lngSpan = ne[0] - sw[0];
+          const latSpan = ne[1] - sw[1];
+          const maxSpan = Math.max(lngSpan, latSpan, 0.001);
+          // ~13 zoom for 1km, 11 for 5km, 9 for 20km (approx)
+          const zoom = Math.max(11, Math.min(16, 14 - Math.log2(maxSpan * 50)));
+          setZoom(Math.round(zoom * 10) / 10);
+        }
+      }
+    }
   }, []);
 
   const handleClearRoute = useCallback(() => {
     setRouteGeojson(null);
   }, []);
+
+  // ── Route to nearest toilet ──────────────────────────────────
+  const [toiletLoading, setToiletLoading] = useState(false);
+  const handleRouteToilet = useCallback(async () => {
+    setToiletLoading(true);
+
+    try {
+      // Get current position
+      let pos = myLocation;
+      if (!pos) {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          showToast('Posisjonstilgang kreves for å finne nærmeste toalett.', 'error');
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        pos = [location.coords.longitude, location.coords.latitude];
+        setMyLocation(pos);
+        animateTo(pos, 14);
+      }
+
+      // Clear any existing route
+      setRouteGeojson(null);
+
+      // Find nearest toilet
+      const toilet = await findNearestToilet(pos[1], pos[0]);
+      if (!toilet) {
+        showToast('Fant ingen toalett i nærheten.', 'info');
+        return;
+      }
+
+      showToast(
+        `Ruter til ${toilet.name} (${toilet.distanceKm} km unna)…`,
+        'info',
+      );
+
+      // Route from current position to toilet
+      const result = await fetchRoute(
+        [pos[0], pos[1]],
+        [toilet.lon, toilet.lat],
+      );
+      handleRouteResult(result);
+    } catch (err: any) {
+      const msg =
+        err.code === 2
+          ? 'Posisjon utilgjengelig. Aktiver posisjonstjenester.'
+          : `Kunne ikke rute til toalett: ${err.message}`;
+      showToast(msg, 'error');
+    } finally {
+      setToiletLoading(false);
+    }
+  }, [myLocation, animateTo, handleRouteResult]);
 
   // ── Viewport scanning ──────────────────────────────────────────────────
   const computeExtent = useCallback(() => {
@@ -422,6 +500,7 @@ export default function HomeScreen() {
             onOpenFeatureList={handleOpenFeatureList}
             onOpenSearch={() => setSearchVisible(true)}
             onOpenRoutePlanner={handleOpenRoutePlanner}
+            onRouteToilet={handleRouteToilet}
             gpsLoading={gpsLoading}
             safeAreaBottom={insets.bottom}
           />
