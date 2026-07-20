@@ -591,9 +591,12 @@ export async function loadHighscoreData(
   try {
     const { Asset } = require('expo-asset');
     const [asset] = await Asset.loadAsync(require('../../assets/highscore.json'));
-    await asset.downloadAsync();
     const response = await fetch(asset.localUri || asset.uri);
     const data: HighscoreEntry[] = await response.json();
+    // Empty array means placeholder — fall through to live scan
+    if (!Array.isArray(data) || data.length === 0) {
+      return scanForHighscoreData(extent) as unknown as HighscoreEntry[];
+    }
     highscoreCache = data;
     return data.filter((f) =>
       f.x >= merc.xMin && f.x <= merc.xMax &&
