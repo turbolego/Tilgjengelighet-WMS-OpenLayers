@@ -193,14 +193,27 @@ export function RoutePlannerModal({
               </View>
               <View style={styles.resultRow}>
                 <Text style={styles.resultLabel}>Tilgjengelighet:</Text>
-                <Text style={styles.resultValue}>
-                  {routeResult.accessiblePct}% av ruten har full tilgjengelighetsvurdering
-                </Text>
+                <View style={styles.accBar}>
+                  <View style={[styles.accBarSegment, { flex: routeResult.accessiblePct, backgroundColor: '#4CAF50' }]} />
+                  <View style={[styles.accBarSegment, { flex: routeResult.partiallyAccessiblePct, backgroundColor: '#FFC107' }]} />
+                  <View style={[styles.accBarSegment, { flex: routeResult.notAccessiblePct, backgroundColor: '#F44336' }]} />
+                  <View style={[styles.accBarSegment, { flex: routeResult.unknownPct, backgroundColor: '#9E9E9E' }]} />
+                </View>
+              </View>
+              <View style={styles.resultRow}>
+                <Text style={styles.resultLabel}></Text>
+                <View style={styles.accLegend}>
+                  {routeResult.accessiblePct > 0 && <Text style={styles.accLegendItem}>🟢 {routeResult.accessiblePct}%</Text>}
+                  {routeResult.partiallyAccessiblePct > 0 && <Text style={styles.accLegendItem}>🟡 {routeResult.partiallyAccessiblePct}%</Text>}
+                  {routeResult.notAccessiblePct > 0 && <Text style={styles.accLegendItem}>🔴 {routeResult.notAccessiblePct}%</Text>}
+                  {routeResult.unknownPct > 0 && <Text style={styles.accLegendItem}>⚪ {routeResult.unknownPct}%</Text>}
+                </View>
               </View>
               <View style={styles.resultRow}>
                 <Text style={styles.resultLabel}>Kartdata:</Text>
                 <Text style={styles.resultValue}>
-                  {routeResult.routeSource === 'wfs' ? 'Tilgjengelighet-kart' : 'OpenStreetMap'}
+                  {routeResult.routeSource === 'wfs' ? 'Tilgjengelighet-kart' : 'OpenStreetMap'}{' '}
+                  + tilgjengelighetsvurdering (t_vei_r)
                 </Text>
               </View>
 
@@ -217,22 +230,27 @@ export function RoutePlannerModal({
                       <>
                         {counts[3] > 0 && (
                           <Text style={styles.breakdownRow}>
-                            🟢 {counts[3]} segment(er) – Tilgjengelig
+                            🟢 {counts[3]} segment(er) – Tilgjengelig ({routeResult.accessiblePct}%)
                           </Text>
                         )}
                         {counts[2] > 0 && (
                           <Text style={styles.breakdownRow}>
-                            🟡 {counts[2]} segment(er) – Delvis tilgjengelig
+                            🟡 {counts[2]} segment(er) – Delvis tilgjengelig ({routeResult.partiallyAccessiblePct}%)
                           </Text>
                         )}
                         {counts[1] > 0 && (
                           <Text style={styles.breakdownRow}>
-                            🔴 {counts[1]} segment(er) – Ikke tilgjengelig
+                            🔴 {counts[1]} segment(er) – Ikke tilgjengelig ({routeResult.notAccessiblePct}%)
                           </Text>
                         )}
                         {counts[0] > 0 && (
                           <Text style={styles.breakdownRow}>
-                            ⚪ {counts[0]} segment(er) – Ingen vurdering
+                            ⚪ {counts[0]} segment(er) – Ingen vurdering ({routeResult.unknownPct}%)
+                          </Text>
+                        )}
+                        {Object.values(counts).every(c => c === 0) && (
+                          <Text style={styles.breakdownRow}>
+                            Ingen tilgjengelighetsdata tilgjengelig for denne ruten. Prøv å zoome inn i et kartlagt område.
                           </Text>
                         )}
                       </>
@@ -384,6 +402,25 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   breakdownRow: {
+    fontSize: 12,
+    color: MapColors.whiteText,
+  },
+  accBar: {
+    flexDirection: 'row',
+    height: 10,
+    borderRadius: 5,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  accBarSegment: {
+    height: '100%',
+  },
+  accLegend: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  accLegendItem: {
     fontSize: 12,
     color: MapColors.whiteText,
   },
