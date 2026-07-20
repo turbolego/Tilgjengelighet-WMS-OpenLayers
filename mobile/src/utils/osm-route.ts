@@ -8,6 +8,7 @@
 import type { RoutingGraph, RoutePath } from './graph-utils';
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_FALLBACK_URL = 'https://lz4.overpass-api.de/api/interpreter';
 const OVERPASS_TIMEOUT = 20_000; // ms
 const OSM_SEARCH_KM = 15; // km radius to find nearest OSM node
 const MIN_OSM_NODES = 5; // minimum nodes for a usable graph
@@ -37,21 +38,34 @@ export async function fetchOSMGraph(
 out body;`;
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT);
+    for (const url of [OVERPASS_URL, OVERPASS_FALLBACK_URL]) {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT);
 
-    const resp = await fetch(OVERPASS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ data: query }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'TilgjengelighetApp/1.0 (route-planner)',
+          },
+          body: new URLSearchParams({ data: query }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
 
-    if (!resp.ok) return null;
+        if (!resp.ok) continue;
 
-    const data: OverpassResponse = await resp.json();
-    return buildGraphFromOverpass(data, fromLat, fromLon, toLat, toLon);
+        const data: OverpassResponse = await resp.json();
+        const graph = buildGraphFromOverpass(data, fromLat, fromLon, toLat, toLon);
+        if (graph) return graph;
+      } catch {
+        if (timeoutId) clearTimeout(timeoutId);
+        continue;
+      }
+    }
+    return null;
   } catch {
     return null;
   }
