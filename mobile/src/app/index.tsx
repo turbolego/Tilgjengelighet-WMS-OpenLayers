@@ -35,6 +35,7 @@ import {
   buildFeatureInfoUrl,
   fetchFeatureInfo,
   parseFeatureInfoText,
+  loadHighscoreData,
   scanForHighscoreData,
   searchPlaces,
   scanViewportFeatures,
@@ -413,8 +414,13 @@ export default function HomeScreen() {
 
     try {
       const extent = computeExtent();
-      const features = await scanForHighscoreData(extent);
-      setHighscoreFeatures(features as unknown as HighscoreFeature[]);
+      const entries = await loadHighscoreData(extent);
+      // Convert compact format (p/x/y) → modal format (Map)
+      const features: HighscoreFeature[] = entries.map((e) => {
+        const props = new globalThis.Map<string, string>(Object.entries(e.p));
+        return { props, centerX: e.x, centerY: e.y };
+      });
+      setHighscoreFeatures(features);
     } catch (err: any) {
       showToast(`Feil ved skanning: ${err.message}`, 'error');
     } finally {

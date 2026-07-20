@@ -561,3 +561,46 @@ export async function fetchRoute(
     routeSource,
   };
 }
+
+// ── Pre-generated highscore data ──────────────────────────────────────────
+
+export interface HighscoreEntry {
+  p: Record<string, string>;
+  x: number;
+  y: number;
+}
+
+let highscoreCache: HighscoreEntry[] | null = null;
+
+/**
+ * Load pre-generated highscore data from the bundled asset.
+ * Falls back to live WMS scanning if the asset doesn't exist.
+ */
+export async function loadHighscoreData(
+  extent: { xMin: number; yMin: number; xMax: number; yMax: number },
+): Promise<HighscoreEntry[]> {
+  const merc = extent4326to3857(extent);
+
+  if (highscoreCache) {
+    return highscoreCache.filter((f) =>
+      f.x >= merc.xMin && f.x <= merc.xMax &&
+      f.y >= merc.yMin && f.y <= merc.yMax,
+    );
+  }
+
+  try {
+    const { Asset } = require('expo-asset');
+    const [asset] = await Asset.loadAsync(require('../../assets/highscore.json'));
+    await asset.downloadAsync();
+    const response = await fetch(asset.localUri || asset.uri);
+    const data: HighscoreEntry[] = await response.json();
+    highscoreCache = data;
+    return data.filter((f) =>
+      f.x >= merc.xMin && f.x <= merc.xMax &&
+      f.y >= merc.yMin && f.y <= merc.yMax,
+    );
+  } catch {
+    // Fallback: live WMS scan (original behaviour)
+    return scanForHighscoreData(extent) as unknown as HighscoreEntry[];
+  }
+}
