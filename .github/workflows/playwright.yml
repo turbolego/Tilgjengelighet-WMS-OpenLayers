@@ -35,6 +35,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate build version
+        working-directory: mobile
+        run: node scripts/gen-version.js
+
       - name: Install Playwright Chromium
         run: npx playwright install chromium
 
