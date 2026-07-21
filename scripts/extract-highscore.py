@@ -74,6 +74,23 @@ def center_of(coords: list[tuple[float, float]]) -> tuple[float, float]:
     return (clat, clon)
 
 
+def segment_length_m(coords: list[tuple[float, float]]) -> float:
+    """Compute total length in meters using Haversine formula."""
+    if len(coords) < 2:
+        return 0.0
+    R = 6371000  # Earth radius in meters
+    total = 0.0
+    for i in range(len(coords) - 1):
+        lat1, lon1 = math.radians(coords[i][0]), math.radians(coords[i][1])
+        lat2, lon2 = math.radians(coords[i + 1][0]), math.radians(coords[i + 1][1])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        total += R * c
+    return total
+
+
 def is_fully_accessible(props: dict[str, str]) -> bool:
     """All 4 accessibility categories must be 'Tilgjengelig'."""
     for key in ('tilgjengvurderingElRull', 'tilgjengvurderingRulleMan',
@@ -149,9 +166,17 @@ def download_features(type_name: str) -> list[dict]:
             if not is_fully_accessible(props):
                 continue
 
-            # Compute centroid
+            # Compute centroid and length
             clat, clon = center_of(coords)
             mx, my = to_mercator(clat, clon)
+            seg_len = segment_length_m(coords)
+
+            # Map gatetype → veitype (WFS uses 'gatetype', modal expects 'veitype')
+            if 'gatetype' in props:
+                props['veitype'] = props['gatetype']
+
+            # Compute segmentlengde from geometry (WFS doesn't provide it)
+            props['segmentlengde'] = f'{seg_len:.1f}'
 
             # Keep only needed props
             kept = {k: v for k, v in props.items() if k in KEEP_PROPS}
