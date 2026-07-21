@@ -442,7 +442,7 @@ function renderPopup(text, coord) {
   if (allImages.length > 0) {
     html += `<div class="popup-images" role="list" aria-label="Bilder av stedet">`;
     for (const filename of allImages) {
-      const src = `https://wfs.geonorge.no/skwfs/tilgjengelighet/bilder/${encodeURIComponent(filename)}`;
+      const src = `https://data.kartverket.no/tilgjengelighet/tilgjengelighet/${encodeURIComponent(filename)}`;
       html += `<img
         src="${src}"
         alt="Bilde: ${esc(filename)}"

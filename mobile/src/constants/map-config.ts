@@ -3,7 +3,7 @@
 export const WMS_URL = 'https://wms.geonorge.no/skwms1/wms.tilgjengelighet3';
 export const CAPABILITIES_URL = `${WMS_URL}?request=GetCapabilities&service=WMS&language=Norwegian`;
 export const STEDSNAVN_URL = 'https://ws.geonorge.no/stedsnavn/v1/navn';
-export const IMAGE_BASE_URL = 'https://wfs.geonorge.no/skwfs/tilgjengelighet/bilder';
+export const IMAGE_BASE_URL = 'https://data.kartverket.no/tilgjengelighet/tilgjengelighet';
 
 export const NORWAY_CENTER: [number, number] = [15.5, 65.0]; // [lng, lat]
 export const NORWAY_ZOOM = 5;
