@@ -183,10 +183,11 @@ export function parseGMLFeatureInfo(gmlText) {
 
 export function filterFullyAccessible(features) {
   return features.filter((feature) => {
-    const r1 = feature.props.get('tilgjengvurderingrulleman');
-    const r2 = feature.props.get('tilgjengvurderingrulleauto');
-    const r3 = feature.props.get('tilgjengvurderingelrullestol');
-    const r4 = feature.props.get('tilgjengvurderingsyn');
+    // Try camelCase keys first (from WFS/pre-generated data), then lowercase
+    const r1 = feature.props.get('tilgjengvurderingRulleMan') || feature.props.get('tilgjengvurderingrulleman');
+    const r2 = feature.props.get('tilgjengvurderingRulleAuto') || feature.props.get('tilgjengvurderingrulleauto');
+    const r3 = feature.props.get('tilgjengvurderingElRull') || feature.props.get('tilgjengvurderingelrullestol');
+    const r4 = feature.props.get('tilgjengvurderingSyn') || feature.props.get('tilgjengvurderingsyn');
 
     return r1 === 'Tilgjengelig' && r2 === 'Tilgjengelig' && r3 === 'Tilgjengelig' && r4 === 'Tilgjengelig';
   });
