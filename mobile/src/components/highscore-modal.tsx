@@ -45,13 +45,13 @@ export function HighscoreModal({
       return (
         <View>
           <Text style={styles.intro}>
-            Skanner kartvisningen for veier som er tilgjengelige for alle
+            Laster oversikt over veier som er tilgjengelige for alle
             (manuell rullestol, elektrisk rullestol, el-rullestol og
             synshemmede).
           </Text>
           <View style={styles.loadingRow}>
             <Text style={styles.loadingText}>
-              Skanner kartområdet… dette kan ta noen sekunder.
+              Henter data for hele Norge…
             </Text>
           </View>
         </View>
@@ -62,16 +62,12 @@ export function HighscoreModal({
       return (
         <View>
           <Text style={styles.intro}>
-            Skanner kartvisningen for veier som er tilgjengelige for alle
-            (manuell rullestol, elektrisk rullestol, el-rullestol og
-            synshemmede).
+            Veier tilgjengelige for alle i hele Norge (manuell
+            rullestol, elektrisk rullestol, el-rullestol og synshemmede).
           </Text>
           <Text style={styles.emptyText}>
-            Ingen universelt tilgjengelige veier funnet i dette kartområdet.
-            Prøv å zoome inn på et område med turveier.
-          </Text>
-          <Text style={[styles.emptyText, { marginTop: 8 }]}>
-            Tips: Zoom inn på byer/tettsteder for å finne kartlagte turstier.
+            Ingen universelt tilgjengelige veier funnet.
+            Data kan være utdatert — prøv å oppdatere grafen.
           </Text>
         </View>
       );
@@ -129,7 +125,7 @@ export function HighscoreModal({
     return (
       <View>
         <Text style={styles.intro}>
-          Veier tilgjengelige for alle i gjeldende kartvisning (manuell
+          Veier tilgjengelige for alle i hele Norge (manuell
           rullestol, elektrisk rullestol, el-rullestol og synshemmede).
         </Text>
 

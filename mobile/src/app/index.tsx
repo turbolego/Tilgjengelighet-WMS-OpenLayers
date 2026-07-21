@@ -413,8 +413,7 @@ export default function HomeScreen() {
     setHighscoreFeatures([]);
 
     try {
-      const extent = computeExtent();
-      const entries = await loadHighscoreData(extent);
+      const entries = await loadHighscoreData();
       // Convert compact format (p/x/y) → modal format (Map)
       const features: HighscoreFeature[] = entries.map((e) => {
         const props = new globalThis.Map<string, string>(Object.entries(e.p));
@@ -426,7 +425,7 @@ export default function HomeScreen() {
     } finally {
       setHighscoreLoading(false);
     }
-  }, [computeExtent]);
+  }, []);
 
   const handleOpenFeatureList = useCallback(async () => {
     setFeatureListVisible(true);

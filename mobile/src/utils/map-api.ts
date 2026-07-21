@@ -574,18 +574,12 @@ let highscoreCache: HighscoreEntry[] | null = null;
 
 /**
  * Load pre-generated highscore data from the bundled asset.
+ * Returns ALL fully accessible segments across all of Norway.
  * Falls back to live WMS scanning if the asset doesn't exist.
  */
-export async function loadHighscoreData(
-  extent: { xMin: number; yMin: number; xMax: number; yMax: number },
-): Promise<HighscoreEntry[]> {
-  const merc = extent4326to3857(extent);
-
+export async function loadHighscoreData(): Promise<HighscoreEntry[]> {
   if (highscoreCache) {
-    return highscoreCache.filter((f) =>
-      f.x >= merc.xMin && f.x <= merc.xMax &&
-      f.y >= merc.yMin && f.y <= merc.yMax,
-    );
+    return highscoreCache;
   }
 
   try {
@@ -597,15 +591,16 @@ export async function loadHighscoreData(
     const data: HighscoreEntry[] = await response.json();
     // Empty array means placeholder — fall through to live scan
     if (!Array.isArray(data) || data.length === 0) {
-      return scanForHighscoreData(extent) as unknown as HighscoreEntry[];
+      return scanForHighscoreData({
+        xMin: 4.7, yMin: 58.0, xMax: 31.1, yMax: 71.2,
+      }) as unknown as HighscoreEntry[];
     }
     highscoreCache = data;
-    return data.filter((f) =>
-      f.x >= merc.xMin && f.x <= merc.xMax &&
-      f.y >= merc.yMin && f.y <= merc.yMax,
-    );
+    return data;
   } catch {
-    // Fallback: live WMS scan (original behaviour)
-    return scanForHighscoreData(extent) as unknown as HighscoreEntry[];
+    // Fallback: live WMS scan of all Norway
+    return scanForHighscoreData({
+      xMin: 4.7, yMin: 58.0, xMax: 31.1, yMax: 71.2,
+    }) as unknown as HighscoreEntry[];
   }
 }
