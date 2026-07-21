@@ -71,15 +71,15 @@ jobs:
       - name: Pre-generate highscore data
         if: steps.check.outputs.changed == 'true'
         run: |
-          python3 scripts/extract-highscore.py mobile/assets/highscore.json
-          ls -lh mobile/assets/highscore.json
+          python3 scripts/extract-highscore.py mobile/assets/highscore.dat
+          ls -lh mobile/assets/highscore.dat
 
       - name: Commit updated graph and highscore
         if: steps.check.outputs.changed == 'true'
         run: |
           git config user.name "graph-bot[bot]"
           git config user.email "graph-bot[bot]@users.noreply.github.com"
-          git add mobile/assets/norge-routing-graph.dat mobile/assets/norge-routing-graph-manifest.json mobile/assets/highscore.json
+          git add mobile/assets/norge-routing-graph.dat mobile/assets/norge-routing-graph-manifest.json mobile/assets/highscore.dat
           git diff --staged --stat
           git commit -m "chore: auto-rebuild routing graph + highscore [skip ci]" || echo "No changes to commit"
           git push origin HEAD:main

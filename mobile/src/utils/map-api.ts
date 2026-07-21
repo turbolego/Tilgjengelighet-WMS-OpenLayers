@@ -590,8 +590,10 @@ export async function loadHighscoreData(
 
   try {
     const { Asset } = require('expo-asset');
-    const [asset] = await Asset.loadAsync(require('../../assets/highscore.json'));
-    const response = await fetch(asset.localUri || asset.uri);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const [asset] = await Asset.loadAsync(require('../../assets/highscore.dat'));
+    if (!asset.localUri) throw new Error('Asset has no local URI');
+    const response = await fetch(asset.localUri);
     const data: HighscoreEntry[] = await response.json();
     // Empty array means placeholder — fall through to live scan
     if (!Array.isArray(data) || data.length === 0) {

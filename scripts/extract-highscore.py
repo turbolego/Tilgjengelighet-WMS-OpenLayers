@@ -12,7 +12,7 @@ Output: JSON array of { p, x, y }
 
 Usage:
   python3 scripts/extract-highscore.py [output_path]
-  Default output: mobile/assets/highscore.json
+  Default output: mobile/assets/highscore.dat
 """
 
 import json
@@ -183,7 +183,7 @@ def main():
     print(f'  FriluftTurvei accessible: {len(trail):,}')
     print(f'  Total accessible: {len(all_segments):,}')
 
-    output_path = sys.argv[1] if len(sys.argv) > 1 else 'mobile/assets/highscore.json'
+    output_path = sys.argv[1] if len(sys.argv) > 1 else 'mobile/assets/highscore.dat'
 
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(all_segments, f, ensure_ascii=False, separators=(',', ':'))
