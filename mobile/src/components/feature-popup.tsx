@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Image,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -9,10 +7,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { MapColors, MapTheme } from '@/constants/map-theme';
+import { MapColors } from '@/constants/map-theme';
 import { esc } from '@/utils/map-api';
 import type { FeatureInfo } from '@/constants/map-config';
-import { IMAGE_BASE_URL } from '@/constants/map-config';
 
 export interface FeaturePopupProps {
   visible: boolean;
@@ -56,32 +53,18 @@ function FeatureDetail({ feature }: { feature: FeatureInfo }) {
           ))}
       </View>
 
-      {/* Images */}
+      {/* Images — Geonorge has decommissioned the image serving endpoint.
+          bildefil filenames still exist in WFS data but are not accessible
+          via public HTTP. The old endpoint was:
+          https://wfs.geonorge.no/skwfs/tilgjengelighet/bilder/ */}
       {feature.images.length > 0 && (
         <View style={styles.imageSection}>
-          {feature.images.map((filename: string, ii: number) => {
-            const src = `${IMAGE_BASE_URL}/${encodeURIComponent(filename)}`;
-            return (
-              <Pressable
-                key={ii}
-                onPress={() => Linking.openURL(src)}
-                style={[
-                  styles.imageWrapper,
-                  feature.images.length === 1 && styles.imageWrapperSingle,
-                ]}
-              >
-                <Image
-                  source={{ uri: src }}
-                  style={[
-                    styles.image,
-                    feature.images.length === 1 && styles.imageSingle,
-                  ]}
-                  resizeMode="cover"
-                  accessibilityLabel={`Bilde: ${filename}`}
-                />
-              </Pressable>
-            );
-          })}
+          <Text style={styles.sectionTitle}>Bilder</Text>
+          <Text style={styles.imageUnavailable}>
+            Bildene (bildefil) er ikke lenger tilgjengelige via Geonorges
+            API. De tidligere filene: {feature.images.slice(0, 3).join(', ')}
+            {feature.images.length > 3 && ` og ${feature.images.length - 3} til`}
+          </Text>
         </View>
       )}
     </ScrollView>
@@ -373,32 +356,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   imageSection: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
     marginTop: 10,
     paddingTop: 9,
     borderTopWidth: 1,
     borderTopColor: MapColors.divider,
   },
-  imageWrapper: {
-    width: '48%',
-    maxWidth: 130,
-    height: 90,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: MapTheme.ink,
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: MapColors.bodyText,
+    marginBottom: 4,
   },
-  imageWrapperSingle: {
-    width: '100%',
-    maxWidth: '100%',
-    height: 140,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  imageSingle: {
-    height: 140,
+  imageUnavailable: {
+    fontSize: 12,
+    color: MapColors.mutedText,
+    lineHeight: 16,
   },
 });
