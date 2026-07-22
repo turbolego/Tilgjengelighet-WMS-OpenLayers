@@ -22,7 +22,7 @@ export interface FeaturePopupProps {
   features?: FeatureInfo[];
 }
 
-function FeatureDetail({ feature }: { feature: FeatureInfo }) {
+export function FeatureDetail({ feature }: { feature: FeatureInfo }) {
   return (
     <ScrollView
       style={styles.scrollBody}

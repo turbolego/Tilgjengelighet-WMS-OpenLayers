@@ -591,6 +591,43 @@ elHighscoreModal.addEventListener('click', (e) => {
 
 
 /**
+ * Loads pre-generated highscore data from the bundled highscore.dat file.
+ * Returns parsed entries with EPSG:3857 center coordinates and property maps.
+ * Falls back to live WMS scan of all-Norway extent if the file is unavailable.
+ */
+let highscoreFileCache = null;
+
+async function loadHighscoreFromFile() {
+  if (highscoreFileCache) return highscoreFileCache;
+
+  try {
+    const resp = await fetch('highscore.dat', { cache: 'force-cache' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const entries = await resp.json();
+    if (!Array.isArray(entries) || entries.length === 0) {
+      throw new Error('Empty or invalid highscore data');
+    }
+    // Convert compact format { p: {...}, x, y } to HighscoreFeature with Map props
+    const features = entries.map(e => ({
+      featureId: e.featureId || null,
+      layerName: e.layerName || null,
+      props: new Map(Object.entries(e.p || {})),
+      centerX: e.x,
+      centerY: e.y,
+      images: [],
+    }));
+    highscoreFileCache = features;
+    return features;
+  } catch (fileErr) {
+    console.warn('highscore.dat not available, falling back to WMS scan:', fileErr);
+    // Fallback: live WMS scan on the current viewport
+  }
+
+  return null;
+}
+
+
+/**
  * Scans the current map view using a grid of GetFeatureInfo requests
  * to find fully accessible road segments.
  */
@@ -679,9 +716,8 @@ function renderHighscore(features) {
 
   if (accessible.length === 0) {
     elHighscoreContent.innerHTML = `
-      <p class="highscore-intro">Skanner kartvisningen for veier som er tilgjengelige for alle (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
-      <p class="highscore-empty">Ingen universelt tilgjengelige veier funnet i dette kartområdet. Prøv å zoome inn på et område med turveier.</p>
-      <p class="highscore-empty" style="margin-top:.5rem">Tips: Zoom inn på byer/tettsteder for å finne kartlagte turstier.</p>
+      <p class="highscore-intro">Veier tilgjengelige for alle i hele Norge (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
+      <p class="highscore-empty">Ingen universelt tilgjengelige veier funnet. Data kan være utdatert — prøv å oppdatere grafen.</p>
     `;
     return;
   }
@@ -726,7 +762,7 @@ function renderHighscore(features) {
     .slice(0, 10);
 
   let html = `
-    <p class="highscore-intro">Veier tilgjengelige for alle i gjeldende kartvisning (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
+    <p class="highscore-intro">Veier tilgjengelige for alle i hele Norge (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
 
     <div class="highscore-stats">
       <div class="highscore-stat-card">
@@ -832,18 +868,22 @@ elHighscoreContent.addEventListener('click', (e) => {
 elBtnHighscore.addEventListener('click', async () => {
   openHighscore();
   elHighscoreContent.innerHTML = `
-    <p class="highscore-intro">Skanner kartvisningen for veier som er tilgjengelige for alle (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
-    <div class="highscore-loading"><div class="spinner"></div> Skanner kartområdet… dette kan ta noen sekunder.</div>
+    <p class="highscore-intro">Laster oversikt over veier som er tilgjengelige for alle (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
+    <div class="highscore-loading"><div class="spinner"></div> Henter data for hele Norge…</div>
   `;
 
   try {
-    const features = await scanForHighscoreData();
+    // Try pre-generated data first (same as Expo), fall back to viewport scan
+    let features = await loadHighscoreFromFile();
+    if (!features) {
+      features = await scanForHighscoreData();
+    }
     renderHighscore(features);
   } catch (err) {
     console.error('Highscore scan error:', err);
     elHighscoreContent.innerHTML = `
-      <p class="highscore-intro">Skanner kartvisningen for veier som er tilgjengelige for alle.</p>
-      <p style="color:var(--red-warn);font-size:.82rem;">Feil ved skanning: ${esc(err.message)}</p>
+      <p class="highscore-intro">Laster veier som er tilgjengelige for alle.</p>
+      <p style="color:var(--red-warn);font-size:.82rem;">Feil ved lasting: ${esc(err.message)}</p>
     `;
   }
 });

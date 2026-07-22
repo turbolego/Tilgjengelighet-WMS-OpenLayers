@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapColors, MapTheme } from '@/constants/map-theme';
 import { esc } from '@/utils/map-api';
 import type { FeatureInfo } from '@/constants/map-config';
+import { FeatureDetail } from '@/components/feature-popup';
 
 export interface FeatureListModalProps {
   visible: boolean;
@@ -39,6 +40,7 @@ export function FeatureListModal({
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState(new Set<string>());
   const [filter, setFilter] = useState<string | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<FeatureInfo | null>(null);
 
   // Group features by object type
   const grouped = useMemo(() => {
@@ -118,8 +120,37 @@ export function FeatureListModal({
           </View>
         )}
 
-        {/* Filter chips */}
-        {!loading && groupNames.length > 0 && (
+        {/* Selected feature detail */}
+        {!loading && selectedFeature && (
+          <>
+            <View style={styles.detailHeader}>
+              <Pressable
+                onPress={() => setSelectedFeature(null)}
+                style={({ pressed }) => [
+                  styles.backButton,
+                  pressed && styles.backButtonPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Tilbake til listen"
+              >
+                <Text style={styles.backArrow}>←</Text>
+                <Text style={styles.backText}>Tilbake</Text>
+              </Pressable>
+              <Text style={styles.detailTitle} numberOfLines={1}>
+                {groupLabel(selectedFeature)}
+              </Text>
+              <View style={styles.backSpacer} />
+            </View>
+            <FeatureDetail feature={selectedFeature} />
+          </>
+        )}
+
+        {/* Grouped list (hidden when detail visible) */}
+        {!loading && !selectedFeature && (
+          <>
+
+            {/* Filter chips */}
+            {groupNames.length > 0 && (
           <ScrollView
             horizontal
             style={styles.chipRow}
@@ -163,7 +194,7 @@ export function FeatureListModal({
         )}
 
         {/* Empty state */}
-        {!loading && totalCount === 0 && (
+        {totalCount === 0 && (
           <Text style={styles.emptyText}>
             Ingen objekter funnet i kartvisningen.{'\n\n'}
             Zoom inn på et område for å skanne kartlagte elementer, eller slå på
@@ -172,7 +203,7 @@ export function FeatureListModal({
         )}
 
         {/* Grouped list */}
-        {!loading && totalCount > 0 && (
+        {totalCount > 0 && (
           <ScrollView
             style={styles.list}
             contentContainerStyle={styles.listContent}
@@ -195,7 +226,16 @@ export function FeatureListModal({
                   </Pressable>
                   {isOpen &&
                     feats.map((feat) => (
-                      <View key={`${feat.layerName}::${feat.featureId}`} style={styles.featRow} accessible>
+                      <Pressable
+                        key={`${feat.layerName}::${feat.featureId}`}
+                        style={({ pressed }) => [
+                          styles.featRow,
+                          pressed && styles.featRowPressed,
+                        ]}
+                        onPress={() => setSelectedFeature(feat)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Se detaljer for ${groupLabel(feat)}`}
+                      >
                         <Text style={styles.featName}>{groupLabel(feat)}</Text>
                         {[...feat.props.entries()]
                           .filter(
@@ -208,12 +248,15 @@ export function FeatureListModal({
                               {esc(k)}: {esc(v)}
                             </Text>
                           ))}
-                      </View>
+                        <Text style={styles.featHint}>Trykk for full info</Text>
+                      </Pressable>
                     ))}
                 </View>
               );
             })}
           </ScrollView>
+        )}
+      </>
         )}
       </View>
     </Modal>
@@ -357,6 +400,13 @@ const styles = StyleSheet.create({
     paddingLeft: 40,
     paddingRight: 16,
     paddingVertical: 6,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(58,80,104,0.3)',
+    marginBottom: 1,
+  },
+  featRowPressed: {
+    backgroundColor: 'rgba(232,160,32,0.1)',
+    borderLeftColor: MapTheme.amber,
   },
   featName: {
     fontSize: 12,
@@ -367,6 +417,51 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: MapColors.mutedText,
     marginTop: 1,
+  },
+  featHint: {
+    fontSize: 10,
+    color: MapTheme.amber,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  backButtonPressed: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  backArrow: {
+    fontSize: 14,
+    color: MapTheme.amber,
+  },
+  backText: {
+    fontSize: 12,
+    color: MapTheme.amber,
+    fontWeight: '500',
+  },
+  backSpacer: {
+    width: 70,
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: MapColors.divider,
+  },
+  detailTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: MapColors.bodyText,
+    flex: 1,
+    textAlign: 'center',
   },
   emptyText: {
     fontSize: 13,
