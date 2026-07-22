@@ -625,3 +625,69 @@ body { background: var(--ink); color: var(--paper); }
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* ── Feature list modal (objects in viewport) ───────────── */
+#feature-list-modal          { position: absolute !important; inset: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; background: rgba(0,0,0,0.55) !important; padding: 1rem !important; backdrop-filter: blur(3px) !important; }
+#feature-list-modal[hidden]  { display: none !important; }
+
+.fl-group {
+  border-bottom: 1px solid var(--divider);
+}
+.fl-group-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; cursor: pointer; user-select: none;
+}
+.fl-group-header:hover {
+  background: var(--ink-light);
+}
+.fl-arrow {
+  font-size: 10px; color: var(--muted-text); width: 13px;
+  transition: transform .15s;
+}
+.fl-group.open .fl-arrow { transform: rotate(90deg); }
+.fl-type { flex: 1; font-size: 13px; font-weight: 600; color: var(--body-text); }
+.fl-count { font-size: 11px; color: var(--muted-text); font-weight: 500; }
+.fl-items { display: none; padding: 0 0 4px 33px; }
+.fl-group.open .fl-items { display: block; }
+.fl-item-btn {
+  display: block; width: 100%; text-align: left;
+  padding: 6px 12px; margin-bottom: 1px;
+  border: none; border-radius: 0; background: transparent;
+  font-size: 12px; color: var(--white); cursor: pointer;
+  font-family: inherit;
+}
+.fl-item-btn:hover {
+  background: rgba(232,160,32,0.1);
+  border-left: 2px solid var(--amber);
+}
+
+/* ── Route planner modal ──────────────────────────────────── */
+#route-modal              { position: absolute !important; inset: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; background: rgba(0,0,0,0.55) !important; padding: 1rem !important; backdrop-filter: blur(3px) !important; }
+#route-modal[hidden]      { display: none !important; }
+
+.route-modal-inner { width: min(400px, 90vw); }
+
+.btn-primary {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; padding: 10px 16px; margin-top: 4px;
+  border: none; border-radius: 8px;
+  background: var(--amber);
+  color: var(--ink); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.btn-primary:hover { background: var(--amber-deep); color: var(--white); }
+.btn-primary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.search-result-btn {
+  display: block; width: 100%; text-align: left;
+  padding: 6px 10px; border: none; background: transparent;
+  color: var(--body-text); font-size: 12px; cursor: pointer;
+  font-family: inherit;
+}
+.search-result-btn:hover { background: var(--ink-light); color: var(--white); }
+
+/* ── GPS location dot ─────────────────────────────────────── */
+.gps-dot { width: 16px; height: 16px; border-radius: 50%; background: #4285f4; border: 3px solid white; box-shadow: 0 0 8px rgba(66,133,244,0.6); }
+
+/* ── Route overlay styles ─────────────────────────────────── */
+.ol-route-layer { z-index: 20; }

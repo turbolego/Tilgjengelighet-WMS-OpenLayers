@@ -43,6 +43,51 @@
     </div>
   </div>
 
+  <!-- ── Feature list modal ("Objekter i området") ────────────────────────── -->
+  <div id="feature-list-modal" class="ol-feature-modal ol-unselectable" hidden>
+    <div class="feature-modal-inner feature-list-modal-inner">
+      <header class="settings-header">
+        <span class="settings-title">📋 Objekter i kartvisningen</span>
+        <button id="feature-list-closer" class="settings-close" aria-label="Lukk liste">✕</button>
+      </header>
+      <div class="feature-modal-body" id="feature-list-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Route planner modal ──────────────────────────────────────────────── -->
+  <div id="route-modal" class="modal" hidden>
+    <div class="feature-modal-inner route-modal-inner">
+      <header class="settings-header">
+        <span class="settings-title">🧭 Ruteplanlegger</span>
+        <button id="route-closer" class="settings-close" aria-label="Lukk ruteplanlegger">✕</button>
+      </header>
+      <div class="feature-modal-body" id="route-content">
+        <p style="font-size:.82rem;color:var(--muted-text);margin-bottom:.75rem">
+          Ruteplanleggeren bruker Valhalla (OpenStreetMap) for å beregne
+          gangbare ruter med tilgjengelighetsinformasjon fra Geonorge WFS.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <label for="route-from" style="font-size:.75rem;color:var(--muted-text)">Fra</label>
+            <input id="route-from" type="text" class="search-input"
+              placeholder="Startpunkt…" autocomplete="off" />
+            <ul id="route-from-results" class="search-results" aria-live="polite"></ul>
+          </div>
+          <div>
+            <label for="route-to" style="font-size:.75rem;color:var(--muted-text)">Til</label>
+            <input id="route-to" type="text" class="search-input"
+              placeholder="Målpunkt…" autocomplete="off" />
+            <ul id="route-to-results" class="search-results" aria-live="polite"></ul>
+          </div>
+          <button id="btn-compute-route" class="btn-primary">
+            Beregn rute
+          </button>
+          <p id="route-status" style="font-size:.75rem;color:var(--muted-text);min-height:1.2em"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Settings panel ───────────────────────────────────────────────────── -->
   <div id="settings-panel" class="ol-settings-panel ol-unselectable" hidden>
     <div class="settings-inner">
@@ -99,7 +144,11 @@
     <button id="btn-reset-view" aria-label="Tilbakestill kartvisning til Norge">⌂</button>
     <button id="btn-gps"        aria-label="Vis min posisjon">📍</button>
     <button id="btn-highscore"  aria-label="Vis toppliste over tilgjengelige veier">🏆</button>
+    <button id="btn-feature-list" aria-label="Vis objekter i kartet">📋</button>
     <hr class="action-bar-divider" aria-hidden="true" />
+    <button id="btn-search"     aria-label="Søk etter sted">🔎</button>
+    <button id="btn-route"      aria-label="Ruteplanlegger">🧭</button>
+    <button id="btn-toilet"     aria-label="Nærmeste tilgjengelige toalett">🚻</button>
     <button id="btn-open-settings" aria-label="Åpne innstillinger og kartlag" aria-expanded="false">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/>

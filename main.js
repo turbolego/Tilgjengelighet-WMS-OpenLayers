@@ -73,6 +73,26 @@ const elHighscoreModal   = document.getElementById('highscore-modal');
 const elHighscoreContent = document.getElementById('highscore-content');
 const elHighscoreCloser  = document.getElementById('highscore-closer');
 const elBtnHighscore     = document.getElementById('btn-highscore');
+const elBtnFeatureList   = document.getElementById('btn-feature-list');
+const elBtnSearch        = document.getElementById('btn-search');
+const elBtnRoute         = document.getElementById('btn-route');
+const elBtnToilet        = document.getElementById('btn-toilet');
+
+// Feature list refs
+const elFeatureListModal   = document.getElementById('feature-list-modal');
+const elFeatureListContent = document.getElementById('feature-list-content');
+const elFeatureListCloser  = document.getElementById('feature-list-closer');
+
+// Route planner refs
+const elRouteModal      = document.getElementById('route-modal');
+const elRouteContent    = document.getElementById('route-content');
+const elRouteCloser     = document.getElementById('route-closer');
+const elRouteFrom       = document.getElementById('route-from');
+const elRouteTo         = document.getElementById('route-to');
+const elRouteFromResults = document.getElementById('route-from-results');
+const elRouteToResults   = document.getElementById('route-to-results');
+const elBtnComputeRoute  = document.getElementById('btn-compute-route');
+const elRouteStatus      = document.getElementById('route-status');
 
 // ── Base layers ───────────────────────────────────────────────────────────────
 
@@ -887,6 +907,451 @@ elBtnHighscore.addEventListener('click', async () => {
     `;
   }
 });
+
+// ── Feature list button handler ──────────────────────────────────────────────
+
+let featureListAllFeatures = [];
+
+async function openFeatureList() {
+  elFeatureListModal.hidden = false;
+  elFeatureListContent.innerHTML = `<div class="loading-state"><div class="spinner"></div> Skanner kartvisningen…</div>`;
+
+  try {
+    const extent = map.getView().calculateExtent(map.getSize());
+    const features = await scanViewportFeatures(extent);
+    featureListAllFeatures = features;
+    renderFeatureList(features);
+  } catch (err) {
+    console.error('Feature list scan error:', err);
+    elFeatureListContent.innerHTML = `<p style="font-size:.82rem;color:var(--red-warn)">Feil: ${esc(err.message)}</p>`;
+  }
+}
+
+function closeFeatureList() {
+  elFeatureListModal.hidden = true;
+  featureListAllFeatures = [];
+}
+
+elBtnFeatureList.addEventListener('click', openFeatureList);
+elFeatureListCloser.addEventListener('click', closeFeatureList);
+
+async function scanViewportFeatures(extent) {
+  const queryLayers = 'tilgjengelighet3';
+  const gridSize = 8;
+  const featureCount = 200;
+  const allFeatures = new Map();
+
+  const [xMin, yMin, xMax, yMax] = extent;
+  const xStep = (xMax - xMin) / gridSize;
+  const yStep = (yMax - yMin) / gridSize;
+
+  const requests = [];
+  for (let xi = 0; xi < gridSize; xi++) {
+    for (let yi = 0; yi < gridSize; yi++) {
+      const centerX = xMin + (xi + 0.5) * xStep;
+      const centerY = yMin + (yi + 0.5) * yStep;
+      const cellXMin = centerX - xStep * 1.5;
+      const cellYMin = centerY - yStep * 1.5;
+      const cellXMax = centerX + xStep * 1.5;
+      const cellYMax = centerY + yStep * 1.5;
+      const bbox = `${cellXMin},${cellYMin},${cellXMax},${cellYMax}`;
+
+      const url = `${WMS_URL}?` + new URLSearchParams({
+        QUERY_LAYERS: queryLayers, REQUEST: 'GetFeatureInfo',
+        SERVICE: 'WMS', VERSION: '1.3.0', INFO_FORMAT: 'application/vnd.ogc.gml',
+        FORMAT: 'image/png', STYLES: '', TRANSPARENT: 'true',
+        LAYERS: queryLayers, language: 'Norwegian',
+        FEATURE_COUNT: String(featureCount),
+        I: '1', J: '1', WIDTH: '3', HEIGHT: '3',
+        CRS: 'EPSG:3857', BBOX: bbox,
+      }).toString();
+      requests.push(url);
+    }
+  }
+
+  const batchSize = 8;
+  for (let i = 0; i < requests.length; i += batchSize) {
+    const batch = requests.slice(i, i + batchSize);
+    const responses = await Promise.allSettled(batch.map(url => fetch(url).then(r => r.text())));
+    for (const result of responses) {
+      if (result.status !== 'fulfilled') continue;
+      const features = parseGMLFeatureInfo(result.value);
+      for (const feat of features) {
+        const key = feat.props.get('objid') || feat.props.get('lokalid') || feat.featureId;
+        if (key && !allFeatures.has(key)) {
+          allFeatures.set(key, feat);
+        }
+      }
+    }
+  }
+
+  return [...allFeatures.values()].sort((a, b) => {
+    const la = (a.props.get('objekttype') || a.layerName || '');
+    const lb = (b.props.get('objekttype') || b.layerName || '');
+    return la.localeCompare(lb, 'no');
+  });
+}
+
+function renderFeatureList(features) {
+  if (features.length === 0) {
+    elFeatureListContent.innerHTML = `<p style="font-size:.82rem;color:var(--muted-text);text-align:center;padding:2rem">Ingen objekter funnet i kartvisningen.</p>`;
+    return;
+  }
+
+  // Group by object type
+  const groups = new Map();
+  for (const f of features) {
+    const type = f.props.get('objekttype') || f.layerName || 'Ukjent';
+    if (!groups.has(type)) groups.set(type, []);
+    groups.get(type).push(f);
+  }
+
+  let html = `<p style="font-size:.75rem;color:var(--muted-text);margin-bottom:.75rem">${features.length} objekter funnet i kartvisningen.</p>`;
+
+  for (const [type, feats] of groups) {
+    html += `<div class="fl-group"><div class="fl-group-header" onclick="this.parentElement.classList.toggle('open')">`;
+    html += `<span class="fl-arrow">▶</span>`;
+    html += `<span class="fl-type">${esc(type)}</span>`;
+    html += `<span class="fl-count">${feats.length}</span>`;
+    html += `</div><div class="fl-items">`;
+
+    for (const feat of feats) {
+      const featId = feat.featureId || '';
+      const name = feat.props.get('gatetype') || feat.props.get('veitype') ||
+                   feat.props.get('navn') || featId;
+      html += `<button class="fl-item-btn" data-feat="${encodeURIComponent(JSON.stringify({
+        layerName: feat.layerName,
+        featureId: feat.featureId,
+        props: Object.fromEntries(feat.props),
+      }))}">`;
+      html += esc(name);
+      html += `</button>`;
+    }
+    html += `</div></div>`;
+  }
+
+  elFeatureListContent.innerHTML = html;
+}
+
+// Feature list row tap opens popup with full details
+elFeatureListContent.addEventListener('click', (e) => {
+  const btn = e.target.closest('.fl-item-btn');
+  if (!btn) return;
+  try {
+    const data = JSON.parse(decodeURIComponent(btn.dataset.feat));
+    const props = data.props || {};
+
+    let html = `<p class="popup-layer-label">${esc(data.layerName || 'TettstedVei')}`;
+    if (data.featureId) html += ` · #${esc(data.featureId)}`;
+    html += `</p>`;
+
+    html += `<table><thead><tr><th scope="col">Egenskap</th><th scope="col">Verdi</th></tr></thead><tbody>`;
+    for (const [k, v] of Object.entries(props)) {
+      if (!v || /^bildefil[123]$/i.test(k)) continue;
+      html += `<tr><th scope="row">${esc(k)}</th><td>${esc(v)}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+
+    // Images
+    const images = [];
+    for (let i = 1; i <= 3; i++) {
+      const img = props[`bildefil${i}`];
+      if (img) images.push(img);
+    }
+    if (images.length > 0) {
+      html += `<div class="popup-images" role="list" aria-label="Bilder av stedet">`;
+      for (const filename of images) {
+        const src = `https://data.kartverket.no/tilgjengelighet/tilgjengelighet/${encodeURIComponent(filename)}`;
+        html += `<img src="${src}" alt="Bilde: ${esc(filename)}" loading="lazy" role="listitem" />`;
+      }
+      html += `</div>`;
+    }
+
+    elPopupTitle.textContent = data.layerName || 'Stedsinfo';
+    elPopupContent.innerHTML = html;
+    elPopup.hidden = false;
+    closeFeatureList();
+  } catch (err) {
+    console.error('Feature detail error:', err);
+  }
+});
+
+// ── Search button handler (opens settings with search focused) ─────────────
+
+elBtnSearch.addEventListener('click', () => {
+  openSettings();
+  setTimeout(() => elPlaceSearch.focus(), 100);
+});
+
+// ── Route planner ───────────────────────────────────────────────────────────
+
+let routeFromCoords = null;
+let routeToCoords = null;
+let routeLayer = null;
+
+function openRouteModal() {
+  elRouteModal.hidden = false;
+  elRouteFrom.value = '';
+  elRouteTo.value = '';
+  elRouteStatus.textContent = '';
+  routeFromCoords = null;
+  routeToCoords = null;
+}
+
+function closeRouteModal() {
+  elRouteModal.hidden = true;
+}
+
+elBtnRoute.addEventListener('click', openRouteModal);
+elRouteCloser.addEventListener('click', closeRouteModal);
+
+// Place search delegates for route form inputs
+async function searchForRouteSide(query, searchResultsEl, coordSetter) {
+  if (query.length < 2) { searchResultsEl.innerHTML = ''; return; }
+  try {
+    const results = await searchNominatim(query);
+    let html = '';
+    for (const r of results.slice(0, 5)) {
+      html += `<li><button class="search-result-btn" data-lon="${r.lon}" data-lat="${r.lat}" data-name="${esc(r.display_name)}">${esc(r.display_name)}</button></li>`;
+    }
+    searchResultsEl.innerHTML = html || '<li style="font-size:.75rem;color:var(--muted-text);padding:.5rem">Ingen treff</li>';
+  } catch { searchResultsEl.innerHTML = ''; }
+}
+
+// Simple Nominatim search for route endpoints
+async function searchNominatim(query) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=no`;
+  const resp = await fetch(url, { headers: { 'User-Agent': 'TiligjengelighetApp/1.0' } });
+  if (!resp.ok) throw new Error('Search failed');
+  return await resp.json();
+}
+
+let routeFromTimer, routeToTimer;
+elRouteFrom.addEventListener('input', () => {
+  clearTimeout(routeFromTimer);
+  routeFromTimer = setTimeout(() => searchForRouteSide(elRouteFrom.value, elRouteFromResults), 300);
+});
+
+elRouteTo.addEventListener('input', () => {
+  clearTimeout(routeToTimer);
+  routeToTimer = setTimeout(() => searchForRouteSide(elRouteTo.value, elRouteToResults), 300);
+});
+
+// Handle result clicks for route from/to
+elRouteFromResults.addEventListener('click', (e) => {
+  const btn = e.target.closest('.search-result-btn');
+  if (!btn) return;
+  elRouteFrom.value = btn.dataset.name;
+  routeFromCoords = [parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lon)];
+  elRouteFromResults.innerHTML = '';
+});
+
+elRouteToResults.addEventListener('click', (e) => {
+  const btn = e.target.closest('.search-result-btn');
+  if (!btn) return;
+  elRouteTo.value = btn.dataset.name;
+  routeToCoords = [parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lon)];
+  elRouteToResults.innerHTML = '';
+});
+
+// Compute route (Valhalla)
+elBtnComputeRoute.addEventListener('click', async () => {
+  if (!routeFromCoords || !routeToCoords) {
+    elRouteStatus.textContent = 'Vennligst velg både start- og målpunkt.';
+    return;
+  }
+  elRouteStatus.textContent = 'Beregner rute…';
+  try {
+    const [fromLat, fromLon] = routeFromCoords;
+    const [toLat, toLon] = routeToCoords;
+    const body = JSON.stringify({
+      locations: [
+        { lat: fromLat, lon: fromLon },
+        { lat: toLat, lon: toLon },
+      ],
+      costing: 'pedestrian',
+      directions_options: { units: 'kilometers' },
+    });
+    const resp = await fetch(`https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(body)}`);
+    const data = await resp.json();
+    if (data.trip) {
+      const leg = data.trip.legs[0];
+      const coords = decodePolyline(leg.shape);
+      const km = (leg.summary.length / 1000).toFixed(1);
+      drawRouteOnMap(coords);
+      elRouteStatus.textContent = `Rute funnet: ${km} km.`;
+      // Fit map to route
+      const ext = coordsToExtent(coords);
+      if (ext) map.getView().fit(ext, { maxZoom: 14, duration: 500 });
+    } else {
+      elRouteStatus.textContent = 'Kunne ikke beregne rute. Prøv andre punkt.';
+    }
+  } catch (err) {
+    elRouteStatus.textContent = `Feil: ${esc(err.message || 'Ukjent feil')}`;
+  }
+});
+
+/**
+ * Decode an encoded polyline (Google's polyline algorithm, as used by Valhalla).
+ */
+function decodePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  const len = encoded.length;
+  while (index < len) {
+    let shift = 0, result = 0, byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const deltaLat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lat += deltaLat;
+
+    shift = 0; result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const deltaLng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += deltaLng;
+
+    coordinates.push([lng * 1e-6, lat * 1e-6]);
+  }
+  return coordinates;
+}
+
+function drawRouteOnMap(coords) {
+  // Remove previous route
+  if (routeLayer) map.removeLayer(routeLayer);
+  routeLayer = new VectorLayer({
+    source: new VectorSource({
+      features: [new Feature({
+        geometry: new LineString(coords),
+      })],
+    }),
+    style: new Style({
+      stroke: new Stroke({ color: '#e8a020', width: 3 }),
+    }),
+    zIndex: 20,
+  });
+  map.addLayer(routeLayer);
+}
+
+function coordsToExtent(coords) {
+  if (!coords || coords.length === 0) return null;
+  const lons = coords.map(c => c[0]);
+  const lats = coords.map(c => c[1]);
+  return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+}
+
+// ── Nearest toilet ──────────────────────────────────────────────────────────
+
+let currentLocation = null;
+
+elBtnToilet.addEventListener('click', async () => {
+  elRouteStatus.textContent = 'Søker etter nærmeste toalett…';
+  openRouteModal();
+
+  if (!currentLocation) {
+    if ('geolocation' in navigator) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
+        });
+        currentLocation = [pos.coords.latitude, pos.coords.longitude];
+        map.getView().animate({ center: [currentLocation[1], currentLocation[0]], zoom: 14, duration: 500 });
+      } catch {
+        elRouteStatus.textContent = 'Posisjon utilgjengelig. Aktiver posisjonstjenester.';
+        return;
+      }
+    } else {
+      elRouteStatus.textContent = 'Posisjonstjenester ikke støttet.';
+      return;
+    }
+  }
+
+  try {
+    const [lat, lon] = currentLocation;
+    const toilet = await findNearestToiletWeb(lat, lon);
+    if (!toilet) {
+      elRouteStatus.textContent = 'Fant ingen toalett i nærheten.';
+      return;
+    }
+
+    elRouteStatus.textContent = `Ruter til ${toilet.name} (${toilet.distanceKm} km unna)…`;
+    const body = JSON.stringify({
+      locations: [
+        { lat, lon },
+        { lat: toilet.lat, lon: toilet.lon },
+      ],
+      costing: 'pedestrian',
+      directions_options: { units: 'kilometers' },
+    });
+    const resp = await fetch(`https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(body)}`);
+    const data = await resp.json();
+    if (data.trip) {
+      const leg = data.trip.legs[0];
+      const coords = decodePolyline(leg.shape);
+      drawRouteOnMap(coords);
+      const km = (leg.summary.length / 1000).toFixed(1);
+      elRouteStatus.textContent = `Rute til ${toilet.name} (${km} km)`;
+      const ext = coordsToExtent(coords);
+      if (ext) map.getView().fit(ext, { padding: [50, 50, 50, 50], maxZoom: 15, duration: 500 });
+    } else {
+      elRouteStatus.textContent = 'Ingen rute funnet til toalett.';
+    }
+  } catch (err) {
+    elRouteStatus.textContent = `Feil: ${esc(err.message || 'Ukjent')}`;
+  }
+});
+
+// Haversine distance
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+async function findNearestToiletWeb(lat, lon, radiusMeters = 3000) {
+  const query = [
+    '[out:json][timeout:10];',
+    '(', `  node["amenity"="toilets"](around:${radiusMeters},${lat},${lon});`, ')',
+    ';', 'out body;',
+  ].join('\n');
+
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 10000);
+    const resp = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'TilgjengelighetApp/1.0' },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const elements = data.elements ?? [];
+    if (elements.length === 0) return null;
+
+    const toilets = elements.map(el => {
+      const tLat = el.lat || el.center?.lat || 0;
+      const tLon = el.lon || el.center?.lon || 0;
+      const dist = haversineKm(lat, lon, tLat, tLon);
+      const tags = el.tags ?? {};
+      const name = tags.name ?? tags.operator ?? tags.toilets ?? 'Toalett';
+      return { lat: tLat, lon: tLon, name: String(name), dist };
+    }).filter(t => !isNaN(t.lat) && t.lat !== 0 && t.lon !== 0);
+
+    if (toilets.length === 0) return null;
+    toilets.sort((a, b) => a.dist - b.dist);
+    const nearest = toilets[0];
+    return { lat: nearest.lat, lon: nearest.lon, name: nearest.name, distanceKm: Math.round(nearest.dist * 100) / 100 };
+  } catch { return null; }
+}
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
