@@ -16,6 +16,7 @@ import { Attribution } from 'ol/control';
 import Control from 'ol/control/Control';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
+import LineString from 'ol/geom/LineString';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Style, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
@@ -1177,7 +1178,8 @@ elBtnComputeRoute.addEventListener('click', async () => {
     if (data.trip) {
       const leg = data.trip.legs[0];
       const coords = decodePolyline(leg.shape);
-      const km = (leg.summary.length / 1000).toFixed(1);
+      // Valhalla summary.length is already in km (units: 'kilometers')
+      const km = leg.summary.length.toFixed(1);
       drawRouteOnMap(coords);
       elRouteStatus.textContent = `Rute funnet: ${km} km.`;
       // Fit map to route
@@ -1226,10 +1228,13 @@ function decodePolyline(encoded) {
 function drawRouteOnMap(coords) {
   // Remove previous route
   if (routeLayer) map.removeLayer(routeLayer);
+  // Coords from Valhalla are [lon, lat] in EPSG:4326 — transform to map
+  // projection (EPSG:3857) or the line lands at the wrong location.
+  const projected = coords.map(([lon, lat]) => fromLonLat([lon, lat]));
   routeLayer = new VectorLayer({
     source: new VectorSource({
       features: [new Feature({
-        geometry: new LineString(coords),
+        geometry: new LineString(projected),
       })],
     }),
     style: new Style({
@@ -1242,8 +1247,10 @@ function drawRouteOnMap(coords) {
 
 function coordsToExtent(coords) {
   if (!coords || coords.length === 0) return null;
-  const lons = coords.map(c => c[0]);
-  const lats = coords.map(c => c[1]);
+  // Fit expects the extent in the view projection (EPSG:3857)
+  const projected = coords.map(([lon, lat]) => fromLonLat([lon, lat]));
+  const lons = projected.map(c => c[0]);
+  const lats = projected.map(c => c[1]);
   return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
 }
 
@@ -1262,7 +1269,7 @@ elBtnToilet.addEventListener('click', async () => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
         });
         currentLocation = [pos.coords.latitude, pos.coords.longitude];
-        map.getView().animate({ center: [currentLocation[1], currentLocation[0]], zoom: 14, duration: 500 });
+        map.getView().animate({ center: fromLonLat([currentLocation[1], currentLocation[0]]), zoom: 14, duration: 500 });
       } catch {
         elRouteStatus.textContent = 'Posisjon utilgjengelig. Aktiver posisjonstjenester.';
         return;
@@ -1296,7 +1303,8 @@ elBtnToilet.addEventListener('click', async () => {
       const leg = data.trip.legs[0];
       const coords = decodePolyline(leg.shape);
       drawRouteOnMap(coords);
-      const km = (leg.summary.length / 1000).toFixed(1);
+      // Valhalla summary.length is already in km (units: 'kilometers')
+      const km = leg.summary.length.toFixed(1);
       elRouteStatus.textContent = `Rute til ${toilet.name} (${km} km)`;
       const ext = coordsToExtent(coords);
       if (ext) map.getView().fit(ext, { padding: [50, 50, 50, 50], maxZoom: 15, duration: 500 });
