@@ -678,6 +678,16 @@ body { background: var(--ink); color: var(--paper); }
 .btn-primary:hover { background: var(--amber-deep); color: var(--white); }
 .btn-primary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+.btn-secondary {
+  padding: 10px 12px; border: 1px solid var(--muted-text, #888);
+  border-radius: 8px; background: transparent;
+  color: var(--body-text); font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.btn-secondary:hover { background: rgba(232,160,32,0.12); border-color: var(--amber); }
+.btn-secondary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.btn-secondary:disabled { opacity: 0.5; cursor: wait; }
+
 .search-result-btn {
   display: block; width: 100%; text-align: left;
   padding: 6px 10px; border: none; background: transparent;

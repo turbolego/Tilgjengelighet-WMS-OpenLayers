@@ -1090,6 +1090,43 @@ let routeFromCoords = null;
 let routeToCoords = null;
 let routeLayer = null;
 
+const elBtnRouteFromGps = document.getElementById('btn-route-from-gps');
+
+function getCurrentPosition() {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      timeout: 10000,
+      enableHighAccuracy: true,
+      maximumAge: 60000,
+    });
+  });
+}
+
+elBtnRouteFromGps.addEventListener('click', async () => {
+  if (!navigator.geolocation) {
+    showToast('Geolokasjon støttes ikke i denne nettleseren.');
+    return;
+  }
+  elBtnRouteFromGps.disabled = true;
+  try {
+    const pos = await getCurrentPosition();
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    routeFromCoords = [lat, lon];
+    elRouteFrom.value = `Min posisjon (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
+    elRouteFromResults.innerHTML = '';
+    placeGPSDot(pos);
+    map.getView().animate({ center: fromLonLat([lon, lat]), zoom: 14, duration: 500 });
+    elRouteStatus.textContent = 'Startpunkt satt til din posisjon.';
+  } catch (err) {
+    console.error(err);
+    const code = err && err.code;
+    elRouteStatus.textContent = gpsErrorMessage(code);
+  } finally {
+    elBtnRouteFromGps.disabled = false;
+  }
+});
+
 function openRouteModal() {
   elRouteModal.hidden = false;
   elRouteFrom.value = '';

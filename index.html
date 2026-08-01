@@ -69,8 +69,12 @@
         <div style="display:flex;flex-direction:column;gap:10px">
           <div>
             <label for="route-from" style="font-size:.75rem;color:var(--muted-text)">Fra</label>
-            <input id="route-from" type="text" class="search-input"
-              placeholder="Startpunkt…" autocomplete="off" />
+            <div style="display:flex;gap:6px">
+              <input id="route-from" type="text" class="search-input" style="flex:1"
+                placeholder="Startpunkt…" autocomplete="off" />
+              <button id="btn-route-from-gps" type="button" class="btn-secondary" style="white-space:nowrap"
+                title="Bruk min posisjon som startpunkt">📍 Min posisjon</button>
+            </div>
             <ul id="route-from-results" class="search-results" aria-live="polite"></ul>
           </div>
           <div>
