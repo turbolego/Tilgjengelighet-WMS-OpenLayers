@@ -617,6 +617,7 @@ elHighscoreModal.addEventListener('click', (e) => {
  * Falls back to live WMS scan of all-Norway extent if the file is unavailable.
  */
 let highscoreFileCache = null;
+let highscoreRenderedHTML = null;
 
 async function loadHighscoreFromFile() {
   if (highscoreFileCache) return highscoreFileCache;
@@ -888,6 +889,11 @@ elHighscoreContent.addEventListener('click', (e) => {
 
 elBtnHighscore.addEventListener('click', async () => {
   openHighscore();
+  // If we already have rendered HTML cached, re-open is instant
+  if (highscoreRenderedHTML) {
+    elHighscoreContent.innerHTML = highscoreRenderedHTML;
+    return;
+  }
   elHighscoreContent.innerHTML = `
     <p class="highscore-intro">Laster oversikt over veier som er tilgjengelige for alle (manuell rullestol, elektrisk rullestol, el-rullestol og synshemmede).</p>
     <div class="highscore-loading"><div class="spinner"></div> Henter data for hele Norge…</div>
@@ -900,6 +906,8 @@ elBtnHighscore.addEventListener('click', async () => {
       features = await scanForHighscoreData();
     }
     renderHighscore(features);
+    // Cache the rendered HTML for instant re-open
+    highscoreRenderedHTML = elHighscoreContent.innerHTML;
   } catch (err) {
     console.error('Highscore scan error:', err);
     elHighscoreContent.innerHTML = `
