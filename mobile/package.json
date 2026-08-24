@@ -39,7 +39,7 @@
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.0",
     "serve": "^14.2.6",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.0"
   },
   "scripts": {
     "prestart": "node scripts/gen-version.js",
