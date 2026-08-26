@@ -1,6 +1,7 @@
 {
   "name": "geonorge-wms-viewer",
   "version": "1.0.0",
+  "type": "module",
   "description": "Accessibility data viewer for Geonorge Tilgjengelighet WMS",
   "scripts": {
     "dev": "vite",
