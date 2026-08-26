@@ -8,6 +8,9 @@ change.
 import hashlib
 import urllib.request
 import xml.etree.ElementTree as ET
+import time
+import sys
+from urllib.error import URLError
 
 WFS_URL = 'https://wfs.geonorge.no/skwms1/wfs.tilgjengelighet'
 SAMPLE_SIZE = 100
@@ -24,6 +27,18 @@ PROPS = (
     'ledelinje', 'belysning', 'dekkeFasthet',
 )
 
+def fetch_with_retry(req, attempts=5, delay=10):
+    last = Exception("Unknown fetch error")
+    for i in range(attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.read()
+        except (URLError, Exception) as e:
+            last = e
+            if i < attempts - 1:
+                print(f"Fetch failed (attempt {i+1}/{attempts}): {e}. Retrying in {delay * (i + 1)} seconds...", file=sys.stderr)
+                time.sleep(delay * (i + 1))
+    raise last
 
 def hash_wfs() -> str:
     chunks = []
@@ -34,8 +49,7 @@ def hash_wfs() -> str:
             f'&typeNames={type_name}&count={SAMPLE_SIZE}&srsName=EPSG:4258'
         )
         req = urllib.request.Request(url, headers={'Accept': 'application/xml'})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = resp.read()
+        data = fetch_with_retry(req)
 
         root = ET.fromstring(data)
         for member in root.findall(f'{{{NS["wfs"]}}}member'):
