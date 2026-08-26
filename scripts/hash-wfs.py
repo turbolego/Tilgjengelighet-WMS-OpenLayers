@@ -27,18 +27,21 @@ PROPS = (
     'ledelinje', 'belysning', 'dekkeFasthet',
 )
 
-def fetch_with_retry(req, attempts=5, delay=10):
-    last = Exception("Unknown fetch error")
-    for i in range(attempts):
+def fetch_with_retry(req, max_retries=5, base_delay=1):
+    """
+    Fetch data with retry logic for transient errors.
+    """
+    for attempt in range(max_retries):
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 return resp.read()
-        except (URLError, Exception) as e:
-            last = e
-            if i < attempts - 1:
-                print(f"Fetch failed (attempt {i+1}/{attempts}): {e}. Retrying in {delay * (i + 1)} seconds...", file=sys.stderr)
-                time.sleep(delay * (i + 1))
-    raise last
+        except URLError as e:
+            if attempt == max_retries - 1:
+                raise
+            delay = base_delay * (attempt + 1)
+            print(f"Connection failed. Retrying in {delay} seconds...", file=sys.stderr)
+            time.sleep(delay)
+    raise URLError(f"Failed to fetch after {max_retries} attempts")
 
 def hash_wfs() -> str:
     chunks = []
