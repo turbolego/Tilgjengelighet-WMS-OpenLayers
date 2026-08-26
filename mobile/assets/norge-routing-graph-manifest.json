@@ -1,12 +1,12 @@
 {
   "source": "geonorge.no WFS Tilgjengelighet (app:TettstedVei + app:FriluftTurvei)",
-  "extracted": "2026-08-26T09:47:38",
-  "nodeCount": 51723,
-  "edgeCount": 83975,
+  "extracted": "2026-08-26T10:04:03",
+  "nodeCount": 46746,
+  "edgeCount": 76919,
   "bounds": {
     "minLat": 58.0168,
-    "maxLat": 71.171,
+    "maxLat": 70.9813,
     "minLon": 4.7068,
-    "maxLon": 31.105
+    "maxLon": 30.0627
   }
 }
