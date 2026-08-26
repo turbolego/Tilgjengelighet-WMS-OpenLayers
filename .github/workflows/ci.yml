@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -34,16 +34,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '22'
           cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
 
       - name: Install mobile dependencies
-        run: npm --prefix mobile ci
+        working-directory: mobile
+        run: npm ci
 
       - name: Generate build version
         working-directory: mobile
         run: node scripts/gen-version.js
 
       - name: Lint mobile app
-        run: npm --prefix mobile run lint
+        working-directory: mobile
+        run: npm run lint
