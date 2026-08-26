@@ -19,9 +19,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Allow install scripts
-        run: npm config set allow-scripts "unrs-resolver"
-
       - name: Install dependencies
         run: npm ci
 
@@ -39,10 +36,6 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-
-      - name: Allow install scripts
-        working-directory: mobile
-        run: npm config set allow-scripts "unrs-resolver"
 
       - name: Install mobile dependencies
         working-directory: mobile
