@@ -10,7 +10,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import time
 import sys
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 
 WFS_URL = 'https://wfs.geonorge.no/skwms1/wfs.tilgjengelighet'
 SAMPLE_SIZE = 100
@@ -27,21 +27,23 @@ PROPS = (
     'ledelinje', 'belysning', 'dekkeFasthet',
 )
 
-def fetch_with_retry(req, max_retries=5, base_delay=1):
+def fetch_with_retry(req, max_retries=8, base_delay=2):
     """
     Fetch data with retry logic for transient errors.
+    Catches both URLError (connection refused, timeout) and HTTPError (4xx/5xx).
     """
     for attempt in range(max_retries):
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=60) as resp:
                 return resp.read()
-        except URLError as e:
+        except (URLError, HTTPError) as e:
             if attempt == max_retries - 1:
                 raise
             delay = base_delay * (attempt + 1)
-            print(f"Connection failed. Retrying in {delay} seconds...", file=sys.stderr)
+            code = e.code if isinstance(e, HTTPError) else str(e.reason)
+            print(f"Request failed (attempt {attempt+1}/{max_retries}, code={code}). Retrying in {delay}s...", file=sys.stderr)
             time.sleep(delay)
-    raise URLError(f"Failed to fetch after {max_retries} attempts")
+    raise Exception(f"Failed to fetch after {max_retries} attempts")
 
 def hash_wfs() -> str:
     chunks = []

@@ -8,11 +8,13 @@ We connect nearby endpoints to create a navigable graph.
 
 Accessibility weights are encoded per edge.
 """
+import hashlib
 import json
 import math
 import sys
 from datetime import datetime
 import xml.etree.ElementTree as ET
+from urllib.error import URLError, HTTPError
 
 # ── Config ─────────────────────────────────────────────────────────────
 WFS_URL = 'https://wfs.geonorge.no/skwms1/wfs.tilgjengelighet'
@@ -25,6 +27,71 @@ NS = {
     'gml': 'http://www.opengis.net/gml/3.2',
     'app': 'https://skjema.geonorge.no/SOSI/produktspesifikasjon/Tilgjengelighet/1.3.1',
 }
+
+# ── WFS hash (same logic as hash-wfs.py, kept in sync) ──────────────────
+HASH_NS = NS.copy()
+HASH_PROPS = (
+    'tilgjengvurderingRulleMan', 'tilgjengvurderingRulleAuto',
+    'tilgjengvurderingElRull', 'tilgjengvurderingSyn',
+    'gatetype', 'bredde', 'stigning', 'tverrfall',
+    'ledelinje', 'belysning', 'dekkeFasthet',
+)
+HASH_SAMPLE = 100
+
+
+def fetch_with_retry(url, max_retries=8, base_delay=2, timeout=60):
+    """Fetch URL with retry for transient errors (both connection and HTTP)."""
+    import urllib.request
+    import time
+    req = urllib.request.Request(url, headers={'Accept': 'application/xml'})
+    for attempt in range(max_retries):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except (URLError, HTTPError) as e:
+            if attempt == max_retries - 1:
+                raise
+            delay = base_delay * (attempt + 1)
+            code = e.code if isinstance(e, HTTPError) else str(e.reason)
+            print(f"  WFS fetch failed (attempt {attempt+1}/{max_retries}, code={code}). Retrying in {delay}s...", file=sys.stderr)
+            time.sleep(delay)
+    raise Exception(f"Failed to fetch after {max_retries} attempts")
+
+
+def compute_data_hash() -> str:
+    """Compute a stable SHA-256 hash of a WFS sample (same as hash-wfs.py)."""
+    chunks = []
+    for type_name in ('app:TettstedVei', 'app:FriluftTurvei'):
+        url = (
+            f'{WFS_URL}?service=WFS&request=GetFeature&version=2.0.0'
+            f'&typeNames={type_name}&count={HASH_SAMPLE}&srsName=EPSG:4258'
+        )
+        data = fetch_with_retry(url)
+        root = ET.fromstring(data)
+        for member in root.findall(f'{{{HASH_NS["wfs"]}}}member'):
+            for feat in member:
+                tag = feat.tag.split('}')[-1] if '}' in feat.tag else feat.tag
+                if tag not in ('TettstedVei', 'FriluftTurvei'):
+                    continue
+                geom = feat.find('.//gml:posList', HASH_NS)
+                if geom is not None and geom.text:
+                    chunks.append(geom.text.strip())
+                for name in HASH_PROPS:
+                    prop = feat.find(f'{{{HASH_NS["app"]}}}{name}')
+                    if prop is not None:
+                        texts = []
+                        for c in prop:
+                            if c.text:
+                                texts.append(c.text.strip())
+                        if texts:
+                            chunks.append(f'{name}={",".join(texts)}')
+                        elif prop.text:
+                            chunks.append(f'{name}={prop.text.strip()}')
+                        else:
+                            chunks.append(f'{name}=')
+    stable = '\n'.join(chunks).encode()
+    return hashlib.sha256(stable).hexdigest()
+
 
 # ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -433,12 +500,18 @@ def main():
     import os
     size = os.path.getsize(output_path)
 
+    # Compute data hash for change detection
+    print('\n── Computing data hash ──')
+    data_hash = compute_data_hash()
+    print(f'  dataHash: {data_hash}')
+
     # Build timestamp
     ts = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
     manifest = {
         'source': 'geonorge.no WFS Tilgjengelighet (app:TettstedVei + app:FriluftTurvei)',
         'extracted': ts,
+        'dataHash': data_hash,
         'nodeCount': len(graph['la']),
         'edgeCount': len(graph['e']) // 3,
         'bounds': bounds,
