@@ -63,7 +63,7 @@
       </header>
       <div class="feature-modal-body" id="toilet-content">
         <p style="font-size:.82rem;color:var(--muted-text);margin-bottom:.75rem">
-          Søk etter nærmeste tilgjengelige toalett via OpenStreetMap Overpass API.
+          Søk etter nærmeste toalett med oversikt over hvor stor andel av ruten som er tilgjengelig.
         </p>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div>
@@ -77,16 +77,17 @@
             <ul id="toilet-from-results" class="search-results" aria-live="polite"></ul>
           </div>
           <div>
-            <label for="toilet-to" style="font-size:.75rem;color:var(--muted-text)">Til</label>
-            <input id="toilet-to" type="text" class="search-input"
-              placeholder="Søker etter nærmeste toalett…" autocomplete="off" readonly
-              style="opacity:.7" />
-            <ul id="toilet-to-results" class="search-results" aria-live="polite"></ul>
+            <label class="toilet-label" style="font-size:.75rem;color:var(--muted-text)">Til</label>
+            <div class="toilet-end-preview" aria-live="polite">
+              <span class="toilet-end-icon" aria-hidden="true">🚻</span>
+              <span class="toilet-end-text" id="toilet-end-text">Nærmeste toalett</span>
+            </div>
           </div>
           <button id="btn-toilet-find" class="btn-primary">
             Finn nærmeste toalett
           </button>
-          <p id="toilet-status" style="font-size:.75rem;color:var(--muted-text);min-height:1.2em"></p>
+          <p id="toilet-status" style="font-size:.75rem;color:var(--muted-text);min-height:1.2em;margin:0"></p>
+          <ul id="toilet-results" class="toilet-results" hidden></ul>
         </div>
       </div>
     </div>

@@ -667,6 +667,40 @@ body { background: var(--ink); color: var(--paper); }
 
 .toilet-modal-inner { width: min(400px, 90vw); }
 
+.toilet-end-preview {
+  display: flex; align-items: center; gap: 6px;
+  padding: .55rem .75rem; background: var(--ink);
+  border: 1px solid var(--steel); border-radius: var(--radius);
+  font-size: .85rem; color: var(--fog);
+}
+.toilet-end-icon { font-size: 1rem; }
+.toilet-end-text { flex: 1; }
+
+.toilet-results {
+  list-style: none;
+  margin-top: .5rem;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.toilet-item {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: .75rem; background: rgba(13,17,23,.5);
+  border: 1px solid var(--steel); border-radius: var(--radius);
+}
+.toilet-item-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.toilet-item-name { font-size: .82rem; font-weight: 600; color: var(--fog); }
+.toilet-item-meta { font-size: .7rem; color: var(--mist); font-family: var(--font-mono); }
+.toilet-item-pct { font-size: .75rem; font-weight: 700; color: var(--amber); font-family: var(--font-mono); }
+.toilet-bar-track {
+  height: 6px; border-radius: 3px; background: var(--steel);
+  overflow: hidden;
+}
+.toilet-bar-fill { height: 100%; border-radius: 3px; transition: width 400ms ease; }
+.toilet-bar-fill.high   { background: #22c55e; }
+.toilet-bar-fill.medium { background: #f59e0b; }
+.toilet-bar-fill.low    { background: #ef4444; }
+
 /* ── Route planner modal ──────────────────────────────────── */
 #route-modal              { position: absolute !important; inset: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; background: rgba(0,0,0,0.55) !important; padding: 1rem !important; backdrop-filter: blur(3px) !important; }
 #route-modal[hidden]      { display: none !important; }

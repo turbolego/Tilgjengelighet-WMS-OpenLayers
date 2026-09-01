@@ -1313,13 +1313,216 @@ function coordsToExtent(coords) {
 
 // ── Nearest toilet ──────────────────────────────────────────────────────────
 
-let currentLocation = null;
+// ── Accessibility data cache (per search) ────────────────────────────────────
+let accessibilityGrid = []; // { x, y, w, h } — EPSG:3857 bounding boxes of accessible segments
+
+// Check if a coordinate is near any fully-accessible road segment
+function isAccessiblePoint(x, y, w, h) {
+  for (const seg of accessibilityGrid) {
+    const dx = Math.abs(x - seg.x);
+    const dy = Math.abs(y - seg.y);
+    // Use the segment's bounding area (approx 100m buffer in screen space)
+    if (dx < seg.w && dy < seg.h) return true;
+  }
+  return false;
+}
+
+// Find the bounding box of a polyline in EPSG:3857 and check accessibility ratio
+function routeAccessibilityRatio(coords, w, h) {
+  if (!coords || coords.length < 2) return null;
+  // Transform route coords to view projection (EPSG:3857)
+  const projected = coords.map(([lon, lat]) => fromLonLat([lon, lat]));
+  const xs = projected.map(p => p[0]);
+  const ys = projected.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+  // Sample along the route at regular intervals
+  const sampleCount = 50;
+  const totalLength = projected.reduce((acc, p, i) => {
+    if (i === 0) return 0;
+    const dx = p[0] - projected[i - 1][0];
+    const dy = p[1] - projected[i - 1][1];
+    return acc + Math.sqrt(dx * dx + dy * dy);
+  }, 0);
+
+  let accessibleLength = 0;
+  let cumulativeDist = 0;
+
+  for (let i = 0; i < projected.length - 1; i++) {
+    const p1 = projected[i], p2 = projected[i + 1];
+    const segLen = Math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2);
+    const steps = Math.max(1, Math.round(segLen / 100)); // 100px steps
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const cx = p1[0] + (p2[0] - p1[0]) * t;
+      const cy = p1[1] + (p2[1] - p1[1]) * t;
+      if (isAccessiblePoint(cx, cy, 50, 50)) {
+        accessibleLength += segLen / steps;
+      }
+    }
+    cumulativeDist += segLen;
+  }
+
+  return cumulativeDist > 0 ? Math.round((accessibleLength / cumulativeDist) * 100) : 0;
+}
+
+// Fetch accessibility data for the viewport using WMS GetFeatureInfo
+async function fetchAccessibilityData() {
+  const view = map.getView();
+  const extent = view.calculateExtent(view.getZoom() < 12 ? view.getSize() : [800, 600]);
+
+  // Grid: sample the viewport for road accessibility
+  const cols = 20, rows = 15;
+  const xStep = (extent[2] - extent[0]) / cols;
+  const yStep = (extent[3] - extent[1]) / rows;
+  const features = [];
+
+  const batchSize = 10;
+  for (let i = 0; i < cols; i += batchSize) {
+    const batch = [];
+    for (let xi = i; xi < Math.min(i + batchSize, cols); xi++) {
+      for (let yj = 0; yj < rows; yj++) {
+        const cx = extent[0] + (xi + 0.5) * xStep;
+        const cy = extent[1] + (yj + 0.5) * yStep;
+        const bbox = `${cx - xStep / 2},${cy - yStep / 2},${cx + xStep / 2},${cy + yStep / 2}`;
+        const url = `${WMS_URL}?${new URLSearchParams({
+          QUERY_LAYERS: 'tilgjengelighet3',
+          INFO_FORMAT: 'application/vnd.ogc.gml',
+          REQUEST: 'GetFeatureInfo',
+          SERVICE: 'WMS', VERSION: '1.3.0',
+          FORMAT: 'image/png', STYLES: '', TRANSPARENT: 'true',
+          LAYERS: 'tilgjengelighet3', language: 'Norwegian',
+          FEATURE_COUNT: '50',
+          I: '1', J: '1', WIDTH: '3', HEIGHT: '3',
+          CRS: 'EPSG:3857', BBOX: bbox,
+        }).toString()}`;
+        batch.push(fetch(url).then(r => r.text()));
+      }
+    }
+    const results = await Promise.allSettled(batch);
+    for (const result of results) {
+      if (result.status !== 'fulfilled') continue;
+      const feats = parseGMLFeatureInfo(result.value);
+      const accessible = filterFullyAccessible(feats);
+      for (const feat of accessible) {
+        features.push({
+          x: feat.centerX,
+          y: feat.centerY,
+          w: xStep / 2,
+          h: yStep / 2,
+        });
+      }
+    }
+  }
+
+  return features;
+}
+
+// Get all toilets within radius, sorted by distance
+async function findAllToiletsWeb(lat, lon, radiusMeters = 5000) {
+  const query = [
+    '[out:json][timeout:10];',
+    '(', `  node["amenity"="toilets"](around:${radiusMeters},${lat},${lon});`, ')',
+    ';', 'out body;',
+  ].join('\n');
+
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 15000);
+    const resp = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'TilgjengelighetApp/1.0' },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const elements = data.elements ?? [];
+
+    const toilets = elements.map(el => {
+      const tLat = el.lat || el.center?.lat || 0;
+      const tLon = el.lon || el.center?.lon || 0;
+      const dist = haversineKm(lat, lon, tLat, tLon);
+      const tags = el.tags ?? {};
+      const name = tags.name ?? tags.operator ?? tags.toilets ?? 'Toalett';
+      return { lat: tLat, lon: tLon, name: String(name), dist };
+    }).filter(t => !isNaN(t.lat) && t.lat !== 0 && t.lon !== 0);
+
+    toilets.sort((a, b) => a.dist - b.dist);
+    return toilets;
+  } catch { return []; }
+}
+
+// Render the toilet results list
+function renderToiletResults(toilets) {
+  const elToiletResults = document.getElementById('toilet-results');
+  if (!toilets || toilets.length === 0) {
+    elToiletResults.innerHTML = '<li style="color:var(--mist);font-size:.82rem;padding:.5rem">Fant ingen toalett innen 5 km.</li>';
+    elToiletResults.hidden = false;
+    return;
+  }
+
+  // Render cards with accessibility ratio already computed
+  let html = '';
+  for (const { toilet } of toilets) {
+    const pct = toilet.ratio;
+    const pctClass = pct === null ? '' : pct >= 70 ? 'high' : pct >= 40 ? 'medium' : 'low';
+    html += `
+      <li class="toilet-item" data-lat="${toilet.lat}" data-lon="${toilet.lon}">
+        <div class="toilet-item-header">
+          <span class="toilet-item-name">${esc(toilet.name)}</span>
+          <span class="toilet-item-meta">${toilet.distanceKm} km · ${toilet.km || '—'} km</span>
+        </div>
+        ${pct === null
+          ? `<div class="toilet-bar-track"><div class="toilet-bar-fill" style="width:0%"></div></div>
+             <span class="toilet-item-meta">Beregner tilgjengelighet…</span>`
+          : `<div class="toilet-bar-track"><div class="toilet-bar-fill ${pctClass}" style="width:${pct}%"></div></div>
+             <span class="toilet-item-pct">${pct}% av ruten tilgjengelig</span>`
+        }
+      </li>`;
+  }
+  elToiletResults.innerHTML = html;
+  elToiletResults.hidden = false;
+}
+
+// Fetch route for each toilet and compute accessibility
+async function computeToiletRoutesAndAccessibility(toilets) {
+  const results = [];
+  for (const toilet of toilets) {
+    const body = JSON.stringify({
+      locations: [
+        { lat: toiletFromCoords[0], lon: toiletFromCoords[1] },
+        { lat: toilet.lat, lon: toilet.lon },
+      ],
+      costing: 'pedestrian',
+      directions_options: { units: 'kilometers' },
+    });
+    try {
+      const resp = await fetch(`https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(body)}`);
+      const data = await resp.json();
+      if (data.trip && data.trip.legs && data.trip.legs[0]) {
+        const coords = decodePolyline(data.trip.legs[0].shape);
+        const routeProjected = coords.map(([lon, lat]) => fromLonLat([lon, lat]));
+        const ratio = routeAccessibilityRatio(routeProjected, 50, 50);
+        results.push({ toilet, coords, ratio, km: data.trip.legs[0].summary.length.toFixed(1) });
+      } else {
+        results.push({ toilet, coords: null, ratio: null, km: null });
+      }
+    } catch {
+      results.push({ toilet, coords: null, ratio: null, km: null });
+    }
+  }
+  return results;
+}
 
 function openToiletModal() {
   elToiletModal.hidden = false;
   elToiletFrom.value = '';
-  elToiletTo.value = '';
-  elToiletStatus.textContent = '';
+  document.getElementById('toilet-end-text').textContent = 'Nærmeste toalett';
+  document.getElementById('toilet-status').textContent = '';
+  document.getElementById('toilet-results').hidden = true;
+  document.getElementById('toilet-results').innerHTML = '';
   toiletFromCoords = null;
   elBtnToiletFromGps.disabled = false;
   elBtnToiletFind.disabled = false;
@@ -1357,48 +1560,62 @@ elBtnToiletFromGps.addEventListener('click', async () => {
   }
 });
 
-// "Finn nærmeste toalett" button
+// "Finn nærmeste toalett" button — computes routes + accessibility
 elBtnToiletFind.addEventListener('click', async () => {
   if (!toiletFromCoords) {
     elToiletStatus.textContent = 'Vennligst angi startpunkt først (📍 Min posisjon).';
     return;
   }
   elBtnToiletFind.disabled = true;
-  elToiletStatus.textContent = 'Søker etter nærmeste toalett…';
-  elToiletTo.value = '';
+  elToiletStatus.textContent = 'Søker etter toaletter…';
 
   try {
-    const [lat, lon] = toiletFromCoords;
-    const toilet = await findNearestToiletWeb(lat, lon);
-    if (!toilet) {
-      elToiletStatus.textContent = 'Fant ingen toalett i nærheten (innen 3 km).';
+    // Fetch accessibility data for current viewport (shared across all routes)
+    elToiletStatus.textContent = 'Henter tilgjengelighetsdata…';
+    accessibilityGrid = await fetchAccessibilityData();
+    if (accessibilityGrid.length === 0) {
+      elToiletStatus.textContent = 'Kunne ikke hente tilgjengelighetsdata. Vær sikker på at kartlaget er aktivert.';
       return;
     }
 
-    elToiletTo.value = `${toilet.name} (${toilet.distanceKm} km unna)`;
-    elToiletStatus.textContent = `Fant ${toilet.name}. Beregner rute…`;
-
-    const body = JSON.stringify({
-      locations: [
-        { lat, lon },
-        { lat: toilet.lat, lon: toilet.lon },
-      ],
-      costing: 'pedestrian',
-      directions_options: { units: 'kilometers' },
-    });
-    const resp = await fetch(`https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(body)}`);
-    const data = await resp.json();
-    if (data.trip) {
-      const leg = data.trip.legs[0];
-      const coords = decodePolyline(leg.shape);
-      drawRouteOnMap(coords);
-      const km = leg.summary.length.toFixed(1);
-      elToiletStatus.textContent = `Rute til ${toilet.name}: ${km} km.`;
-      const ext = coordsToExtent(coords);
-      if (ext) map.getView().fit(ext, { padding: [50, 50, 50, 50], maxZoom: 15, duration: 500 });
-    } else {
-      elToiletStatus.textContent = 'Fant toalett, men kunne ikke beregne rute.';
+    const [lat, lon] = toiletFromCoords;
+    const toilets = await findAllToiletsWeb(lat, lon, 5000);
+    if (toilets.length === 0) {
+      elToiletStatus.textContent = 'Fant ingen toalett i nærheten (innen 5 km).';
+      document.getElementById('toilet-results').innerHTML =
+        '<li style="color:var(--mist);font-size:.82rem;padding:.5rem">Fant ingen toalett innen 5 km.</li>';
+      document.getElementById('toilet-results').hidden = false;
+      return;
     }
+
+    // Filter: show nearest 2 if within 500m, otherwise show at least 2 nearest
+    const nearToilets = toilets.filter(t => t.dist <= 0.5);
+    const count = nearToilets.length >= 2 ? 2 : Math.min(2, toilets.length);
+    const selected = toilets.slice(0, count);
+
+    elToiletStatus.textContent = `Fant ${toilets.length} toalett. Beregner ruter…`;
+    document.getElementById('toilet-end-text').textContent = `Nærmeste toalett (${count} valgt)`;
+
+    const routeResults = await computeToiletRoutesAndAccessibility(selected);
+
+    // Draw routes + render results
+    let primaryRouteCoords = null;
+    for (const { toilet, coords, ratio, km } of routeResults) {
+      if (coords) {
+        if (!primaryRouteCoords) primaryRouteCoords = coords;
+        drawRouteOnMap(coords);
+        toilet.ratio = ratio;
+        toilet.km = km;
+      }
+    }
+
+    if (primaryRouteCoords) {
+      const ext = coordsToExtent(primaryRouteCoords);
+      if (ext) map.getView().fit(ext, { padding: [50, 50, 50, 50], maxZoom: 15, duration: 500 });
+    }
+
+    renderToiletResults(selected);
+    elToiletStatus.textContent = `Ferdig. ${selected.length} toalett vist med tilgjengelighetsoversikt.`;
   } catch (err) {
     elToiletStatus.textContent = `Feil: ${esc(err.message || 'Ukjent')}`;
   } finally {
