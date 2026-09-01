@@ -54,6 +54,44 @@
     </div>
   </div>
 
+  <!-- ── Nearest toilet modal ────────────────────────────────────────────── -->
+  <div id="toilet-modal" class="ol-feature-modal ol-unselectable" hidden>
+    <div class="feature-modal-inner toilet-modal-inner">
+      <header class="settings-header">
+        <span class="settings-title">🚻 Nærmeste toalett</span>
+        <button id="toilet-closer" class="settings-close" aria-label="Lukk">✕</button>
+      </header>
+      <div class="feature-modal-body" id="toilet-content">
+        <p style="font-size:.82rem;color:var(--muted-text);margin-bottom:.75rem">
+          Søk etter nærmeste tilgjengelige toalett via OpenStreetMap Overpass API.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <label for="toilet-from" style="font-size:.75rem;color:var(--muted-text)">Fra</label>
+            <div style="display:flex;gap:6px">
+              <input id="toilet-from" type="text" class="search-input" style="flex:1"
+                placeholder="Startpunkt…" autocomplete="off" readonly />
+              <button id="btn-toilet-from-gps" type="button" class="btn-secondary" style="white-space:nowrap"
+                title="Bruk min posisjon som startpunkt">📍 Min posisjon</button>
+            </div>
+            <ul id="toilet-from-results" class="search-results" aria-live="polite"></ul>
+          </div>
+          <div>
+            <label for="toilet-to" style="font-size:.75rem;color:var(--muted-text)">Til</label>
+            <input id="toilet-to" type="text" class="search-input"
+              placeholder="Søker etter nærmeste toalett…" autocomplete="off" readonly
+              style="opacity:.7" />
+            <ul id="toilet-to-results" class="search-results" aria-live="polite"></ul>
+          </div>
+          <button id="btn-toilet-find" class="btn-primary">
+            Finn nærmeste toalett
+          </button>
+          <p id="toilet-status" style="font-size:.75rem;color:var(--muted-text);min-height:1.2em"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Route planner modal ──────────────────────────────────────────────── -->
   <div id="route-modal" class="modal" hidden>
     <div class="feature-modal-inner route-modal-inner">

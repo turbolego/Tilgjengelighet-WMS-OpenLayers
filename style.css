@@ -661,6 +661,12 @@ body { background: var(--ink); color: var(--paper); }
   border-left: 2px solid var(--amber);
 }
 
+/* ── Nearest toilet modal ──────────────────────────────────── */
+#toilet-modal              { position: absolute !important; inset: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; background: rgba(0,0,0,0.55) !important; padding: 1rem !important; backdrop-filter: blur(3px) !important; }
+#toilet-modal[hidden]      { display: none !important; }
+
+.toilet-modal-inner { width: min(400px, 90vw); }
+
 /* ── Route planner modal ──────────────────────────────────── */
 #route-modal              { position: absolute !important; inset: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; background: rgba(0,0,0,0.55) !important; padding: 1rem !important; backdrop-filter: blur(3px) !important; }
 #route-modal[hidden]      { display: none !important; }

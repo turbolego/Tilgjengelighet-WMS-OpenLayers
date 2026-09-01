@@ -84,6 +84,18 @@ const elFeatureListModal   = document.getElementById('feature-list-modal');
 const elFeatureListContent = document.getElementById('feature-list-content');
 const elFeatureListCloser  = document.getElementById('feature-list-closer');
 
+// Nearest toilet modal refs
+const elToiletModal       = document.getElementById('toilet-modal');
+const elToiletCloser      = document.getElementById('toilet-closer');
+const elToiletFrom        = document.getElementById('toilet-from');
+const elToiletTo          = document.getElementById('toilet-to');
+const elToiletFromResults = document.getElementById('toilet-from-results');
+const elToiletStatus      = document.getElementById('toilet-status');
+const elBtnToiletFind     = document.getElementById('btn-toilet-find');
+const elBtnToiletFromGps  = document.getElementById('btn-toilet-from-gps');
+
+let toiletFromCoords = null;
+
 // Route planner refs
 const elRouteModal      = document.getElementById('route-modal');
 const elRouteContent    = document.getElementById('route-content');
@@ -1303,37 +1315,69 @@ function coordsToExtent(coords) {
 
 let currentLocation = null;
 
-elBtnToilet.addEventListener('click', async () => {
-  elRouteStatus.textContent = 'Søker etter nærmeste toalett…';
-  openRouteModal();
+function openToiletModal() {
+  elToiletModal.hidden = false;
+  elToiletFrom.value = '';
+  elToiletTo.value = '';
+  elToiletStatus.textContent = '';
+  toiletFromCoords = null;
+  elBtnToiletFromGps.disabled = false;
+  elBtnToiletFind.disabled = false;
+}
 
-  if (!currentLocation) {
-    if ('geolocation' in navigator) {
-      try {
-        const pos = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
-        });
-        currentLocation = [pos.coords.latitude, pos.coords.longitude];
-        map.getView().animate({ center: fromLonLat([currentLocation[1], currentLocation[0]]), zoom: 14, duration: 500 });
-      } catch {
-        elRouteStatus.textContent = 'Posisjon utilgjengelig. Aktiver posisjonstjenester.';
-        return;
-      }
-    } else {
-      elRouteStatus.textContent = 'Posisjonstjenester ikke støttet.';
-      return;
-    }
+function closeToiletModal() {
+  elToiletModal.hidden = true;
+}
+
+elBtnToilet.addEventListener('click', openToiletModal);
+elToiletCloser.addEventListener('click', closeToiletModal);
+
+// "Min posisjon" button inside toilet modal
+elBtnToiletFromGps.addEventListener('click', async () => {
+  if (!navigator.geolocation) {
+    elToiletStatus.textContent = 'Geolokasjon støttes ikke.';
+    return;
   }
+  elBtnToiletFromGps.disabled = true;
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
+    });
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    toiletFromCoords = [lat, lon];
+    elToiletFrom.value = `Min posisjon (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
+    placeGPSDot(pos);
+    map.getView().animate({ center: fromLonLat([lon, lat]), zoom: 14, duration: 500 });
+    elToiletStatus.textContent = 'Startpunkt satt til din posisjon.';
+  } catch (err) {
+    elToiletStatus.textContent = gpsErrorMessage(err && err.code);
+  } finally {
+    elBtnToiletFromGps.disabled = false;
+  }
+});
+
+// "Finn nærmeste toalett" button
+elBtnToiletFind.addEventListener('click', async () => {
+  if (!toiletFromCoords) {
+    elToiletStatus.textContent = 'Vennligst angi startpunkt først (📍 Min posisjon).';
+    return;
+  }
+  elBtnToiletFind.disabled = true;
+  elToiletStatus.textContent = 'Søker etter nærmeste toalett…';
+  elToiletTo.value = '';
 
   try {
-    const [lat, lon] = currentLocation;
+    const [lat, lon] = toiletFromCoords;
     const toilet = await findNearestToiletWeb(lat, lon);
     if (!toilet) {
-      elRouteStatus.textContent = 'Fant ingen toalett i nærheten.';
+      elToiletStatus.textContent = 'Fant ingen toalett i nærheten (innen 3 km).';
       return;
     }
 
-    elRouteStatus.textContent = `Ruter til ${toilet.name} (${toilet.distanceKm} km unna)…`;
+    elToiletTo.value = `${toilet.name} (${toilet.distanceKm} km unna)`;
+    elToiletStatus.textContent = `Fant ${toilet.name}. Beregner rute…`;
+
     const body = JSON.stringify({
       locations: [
         { lat, lon },
@@ -1348,16 +1392,17 @@ elBtnToilet.addEventListener('click', async () => {
       const leg = data.trip.legs[0];
       const coords = decodePolyline(leg.shape);
       drawRouteOnMap(coords);
-      // Valhalla summary.length is already in km (units: 'kilometers')
       const km = leg.summary.length.toFixed(1);
-      elRouteStatus.textContent = `Rute til ${toilet.name} (${km} km)`;
+      elToiletStatus.textContent = `Rute til ${toilet.name}: ${km} km.`;
       const ext = coordsToExtent(coords);
       if (ext) map.getView().fit(ext, { padding: [50, 50, 50, 50], maxZoom: 15, duration: 500 });
     } else {
-      elRouteStatus.textContent = 'Ingen rute funnet til toalett.';
+      elToiletStatus.textContent = 'Fant toalett, men kunne ikke beregne rute.';
     }
   } catch (err) {
-    elRouteStatus.textContent = `Feil: ${esc(err.message || 'Ukjent')}`;
+    elToiletStatus.textContent = `Feil: ${esc(err.message || 'Ukjent')}`;
+  } finally {
+    elBtnToiletFind.disabled = false;
   }
 });
 
