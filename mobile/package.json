@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.1",
-    "@maplibre/maplibre-react-native": "11.3.7",
+    "@maplibre/maplibre-react-native": "11.3.9",
     "@tilgjengelighet/shared": "file:../packages/shared",
     "expo": "~57.0.0",
     "expo-asset": "~57.0.6",
